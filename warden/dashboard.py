@@ -57,7 +57,7 @@ _PAGE = """<!doctype html>
 <main>
   <h2>Tool contracts</h2>
   <div id="tools" class="tools"></div>
-  <h2>Recent calls</h2>
+  <h2>Recent calls <span id="tz" style="text-transform:none;letter-spacing:0;color:#566072;font-weight:400"></span></h2>
   <table>
     <thead><tr><th>Time</th><th>Tool</th><th>Method</th><th>Latency</th><th>Result</th></tr></thead>
     <tbody id="calls"></tbody>
@@ -65,6 +65,11 @@ _PAGE = """<!doctype html>
 </main>
 <script>
 function esc(s){ return (s==null?'':String(s)).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+// Timestamps come from Postgres as UTC (timezone-aware ISO). Render in the
+// viewer's LOCAL zone so the call log matches your wall clock.
+const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
+function localTime(iso){ return iso ? new Date(iso).toLocaleTimeString([], {hour12:false}) : '-'; }
 
 function renderTools(tools){
   const el = document.getElementById('tools');
@@ -88,7 +93,7 @@ function renderCalls(calls){
     if (c.blocked) pill = '<span class="pill blk">BLOCKED</span>';
     else if (c.is_error) pill = '<span class="pill err">ERROR</span>';
     const lat = c.latency_ms==null ? '-' : c.latency_ms+' ms';
-    return `<tr><td>${esc((c.ts||'').slice(11,19))}</td><td>${esc(c.tool||'-')}</td>
+    return `<tr><td>${esc(localTime(c.ts))}</td><td>${esc(c.tool||'-')}</td>
       <td>${esc(c.method||'-')}</td><td>${lat}</td><td>${pill}</td></tr>`;
   }).join('');
 }
@@ -103,6 +108,7 @@ async function tick(){
     renderCalls(c.calls||[]);
   } catch(e) { /* transient; next tick */ }
 }
+document.getElementById('tz').textContent = '· local time (' + TZ + ')';
 tick();
 setInterval(tick, 1000);
 </script>
