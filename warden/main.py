@@ -12,7 +12,7 @@ from fastapi import FastAPI, HTTPException
 from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
 
-from . import capture, db, drift, proxy
+from . import capture, dashboard, db, drift, proxy
 
 
 async def _list_upstream_tools(url: str, attempts: int = 6, delay: float = 0.5):
@@ -58,6 +58,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Warden", description="MCP contract-and-drift firewall", lifespan=lifespan)
 app.include_router(proxy.router)
+app.include_router(dashboard.router)
 
 
 @app.get("/health")
