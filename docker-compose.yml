@@ -22,6 +22,9 @@ services:
       dockerfile: test_mcp_server/Dockerfile
     environment:
       PORT: "8000"
+      # `delegate` recurses THROUGH Warden (not the raw server), so the A2A depth
+      # breaker sees every hop.
+      WARDEN_SELF_URL: http://warden:8080/mcp
     # Bind-mount source so a drift edit + `docker compose restart test-mcp`
     # reloads the tool without a rebuild (the demo lever).
     volumes:

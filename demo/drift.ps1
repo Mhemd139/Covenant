@@ -1,6 +1,6 @@
 # Ship a BREAKING change to the LIVE tool: rename get_account's output field
 # balance_usd -> available_balance, then restart just that container.
-(Get-Content test_mcp_server/server.py) -replace 'balance_usd', 'available_balance' |
+(Get-Content test_mcp_server/server.py -Encoding utf8) -replace 'balance_usd', 'available_balance' |
     Set-Content test_mcp_server/server.py -Encoding utf8
 docker compose restart test-mcp | Out-Null
 # Wait for the live tool to accept connections again (any HTTP reply = up).

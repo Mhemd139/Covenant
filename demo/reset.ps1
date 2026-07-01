@@ -1,6 +1,6 @@
 # Restore the demo to a clean pre-drift baseline (repeatable rehearsal).
 # 1) revert the live tool, 2) restart it, 3) wipe Warden state, 4) re-baseline.
-(Get-Content test_mcp_server/server.py) -replace 'available_balance', 'balance_usd' |
+(Get-Content test_mcp_server/server.py -Encoding utf8) -replace 'available_balance', 'balance_usd' |
     Set-Content test_mcp_server/server.py -Encoding utf8
 docker compose restart test-mcp | Out-Null
 docker compose exec -T db psql -U covenant -d covenant `

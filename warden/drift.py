@@ -100,9 +100,11 @@ async def detect(pool, tools: list[dict]) -> list[dict]:
             if not was_quarantined:  # record the transition once
                 await db.record_drift(pool, name, "breaking", changes, True)
             results.append({"tool": name, "severity": "breaking", "changes": changes})
-        elif changes:
-            await db.set_status(pool, name, "ok", None)
-            results.append({"tool": name, "severity": "compatible", "changes": changes})
         else:
-            await db.set_status(pool, name, "ok", None)
+            # No schema drift. Mark healthy, but never clear a quarantine we didn't
+            # set here (e.g. the A2A depth breaker owns its own quarantine).
+            if await db.get_status(pool, name) != "quarantined":
+                await db.set_status(pool, name, "ok", None)
+            if changes:
+                results.append({"tool": name, "severity": "compatible", "changes": changes})
     return results

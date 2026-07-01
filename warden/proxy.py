@@ -7,6 +7,7 @@ to tools Warden has flagged (the status is set by drift detection, Hour 3).
 """
 
 import json
+import os
 import time
 
 import httpx
@@ -16,6 +17,11 @@ from fastapi.responses import StreamingResponse
 from . import capture, db
 
 router = APIRouter()
+
+# A2A recursive-delegation guard: each delegating hop advertises its depth in the
+# X-Covenant-Depth header; Warden trips a circuit breaker past this limit. This is
+# additive and only affects tools invoked in a delegation chain — never the core.
+A2A_DEPTH_LIMIT = int(os.environ.get("A2A_DEPTH_LIMIT", "4"))
 
 _HOP_BY_HOP = {
     "host", "content-length", "connection", "keep-alive",
@@ -34,17 +40,11 @@ def _response_headers(headers) -> dict:
     return {k: v for k, v in headers.items() if k.lower() not in drop}
 
 
-def _quarantine_result(rpc_id, tool_name: str) -> dict:
+def _error_result(rpc_id, text: str) -> dict:
     return {
         "jsonrpc": "2.0",
         "id": rpc_id,
-        "result": {
-            "content": [{
-                "type": "text",
-                "text": f"tool unavailable — '{tool_name}' quarantined by Warden (contract drift)",
-            }],
-            "isError": True,
-        },
+        "result": {"content": [{"type": "text", "text": text}], "isError": True},
     }
 
 
@@ -68,10 +68,26 @@ async def mcp_proxy(request: Request):
     params = rpc.get("params") if isinstance(rpc, dict) else None
     tool_name = params.get("name") if isinstance(params, dict) else None
 
+    # --- A2A depth breaker: stop runaway recursive delegation before forwarding ---
+    if rpc_method == "tools/call":
+        try:
+            depth = int(request.headers.get("x-covenant-depth") or 0)
+        except ValueError:
+            depth = 0
+        if depth > A2A_DEPTH_LIMIT:
+            reason = f"recursive delegation depth {depth} exceeded limit {A2A_DEPTH_LIMIT} (A2A DoS guard)"
+            await db.set_status(pool, tool_name, "quarantined", reason)
+            await db.record_drift(pool, tool_name, "a2a_depth",
+                                  [{"message": reason, "breaking": True, "location": "a2a"}], True)
+            breaker = _error_result(rpc_id, f"tool unavailable — {reason}")
+            await db.log_call(pool, tool_name, rpc_method, rpc, breaker, 0, True, True)
+            return Response(content=json.dumps(breaker), media_type="application/json")
+
     # --- Quarantine enforcement: block calls to flagged tools, never forward ---
     if rpc_method == "tools/call":
         if await db.get_status(pool, tool_name) == "quarantined":
-            blocked = _quarantine_result(rpc_id, tool_name)
+            blocked = _error_result(
+                rpc_id, f"tool unavailable — '{tool_name}' quarantined by Warden (contract drift)")
             await db.log_call(pool, tool_name, rpc_method, rpc, blocked, 0, True, True)
             return Response(content=json.dumps(blocked), media_type="application/json")
 
