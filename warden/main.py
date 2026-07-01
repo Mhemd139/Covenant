@@ -11,15 +11,10 @@ from fastapi import FastAPI
 from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
 
-from . import capture, db, proxy
+from . import capture, db, drift, proxy
 
 
-async def _noop_detect(pool, norm_tools):
-    """Placeholder until drift detection is wired (Hour 3)."""
-    return None
-
-
-async def refresh_upstream(app: FastAPI) -> list[dict]:
+async def refresh_upstream(app: FastAPI) -> dict:
     """Warden itself connects to the upstream MCP server, lists tools, snapshots,
     and runs drift detection — independent of any client re-listing."""
     url = app.state.upstream_url
@@ -30,8 +25,8 @@ async def refresh_upstream(app: FastAPI) -> list[dict]:
 
     norm = [capture.normalize_tool(t) for t in tools]
     captured = await capture.capture_tools(app.state.pool, norm)
-    await app.state.detect(app.state.pool, norm)
-    return captured
+    detected = await app.state.detect(app.state.pool, norm)
+    return {"captured": captured, "drift": detected}
 
 
 @asynccontextmanager
@@ -39,7 +34,7 @@ async def lifespan(app: FastAPI):
     app.state.pool = await db.create_pool()
     app.state.http = httpx.AsyncClient(timeout=30.0)
     app.state.upstream_url = os.environ.get("UPSTREAM_MCP_URL", "http://test-mcp:8000/mcp")
-    app.state.detect = _noop_detect
+    app.state.detect = drift.detect
     try:
         yield
     finally:
@@ -59,5 +54,44 @@ async def health() -> dict:
 @app.post("/warden/refresh")
 async def warden_refresh() -> dict:
     """Re-snapshot the upstream contract on demand (Warden-owned detection path)."""
-    captured = await refresh_upstream(app)
-    return {"refreshed": captured}
+    return await refresh_upstream(app)
+
+
+@app.get("/warden/status")
+async def warden_status() -> dict:
+    """Per-tool status + latest drift changes — shared by the CLI and dashboard."""
+    pool = app.state.pool
+    statuses = await db.get_all_status(pool)
+    drift_rows = await db.get_recent_drift(pool, limit=50)
+    latest_changes: dict[str, list] = {}
+    for r in drift_rows:
+        latest_changes.setdefault(r["tool_name"], r["changes"])
+    tools = [
+        {
+            "tool": s["tool_name"],
+            "status": s["status"],
+            "reason": s["reason"],
+            "since": s["since"].isoformat(),
+            "changes": latest_changes.get(s["tool_name"], []),
+        }
+        for s in statuses
+    ]
+    return {"tools": tools}
+
+
+@app.get("/warden/calls")
+async def warden_calls(limit: int = 20) -> dict:
+    rows = await db.get_recent_calls(app.state.pool, limit=limit)
+    return {
+        "calls": [
+            {
+                "ts": r["ts"].isoformat(),
+                "tool": r["tool_name"],
+                "method": r["method"],
+                "latency_ms": r["latency_ms"],
+                "is_error": r["is_error"],
+                "blocked": r["blocked"],
+            }
+            for r in rows
+        ]
+    }
