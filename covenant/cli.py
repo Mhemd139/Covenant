@@ -82,6 +82,10 @@ def proxy(
     baseline: str = typer.Option("covenant.lock.json", "--baseline", "-b"),
     host: str = typer.Option("127.0.0.1", "--host"),
     port: int = typer.Option(9000, "--port", "-p"),
+    database_url: str = typer.Option(
+        None, "--database-url", envvar="DATABASE_URL",
+        help="Postgres URL to persist quarantine + call log (optional).",
+    ),
 ) -> None:
     """Run the transparent proxy: forward to the upstream, quarantine drifted tools."""
     try:
@@ -92,16 +96,26 @@ def proxy(
         err.print('[red]error:[/red] proxy needs extras: pip install "covenant-mcp[proxy]"')
         raise typer.Exit(2) from e
 
+    store = None
+    if database_url:
+        try:
+            from .store.postgres import PostgresStore
+        except ImportError as e:
+            err.print('[red]error:[/red] persistence needs: pip install "covenant-mcp[store]"')
+            raise typer.Exit(2) from e
+        store = PostgresStore(database_url)
+
     try:
         _, base_tools = read_baseline(baseline)
     except CovenantError as e:
         err.print(f"[red]error:[/red] {e}")
         raise typer.Exit(2) from e
 
-    fastapi_app = create_app(upstream, base_tools)
+    fastapi_app = create_app(upstream, base_tools, store=store)
+    persistence = "postgres" if store else "in-memory (no persistence)"
     console.print(f"[green]Covenant proxy[/green] guarding [cyan]{upstream}[/cyan] "
                   f"at [cyan]http://{host}:{port}/mcp[/cyan]")
-    console.print(f"[dim]baseline: {baseline} ({len(base_tools)} tools) | "
+    console.print(f"[dim]baseline: {baseline} ({len(base_tools)} tools) | store: {persistence} | "
                   f"POST http://{host}:{port}/covenant/refresh to re-check[/dim]")
     uvicorn.run(fastapi_app, host=host, port=port, log_level="warning")
 
