@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# Env / secrets
+.env
+
+# Postgres volume (if bind-mounted locally)
+pgdata/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+
+# Demo artifacts (keep the final gif tracked explicitly)
+*.mov
+*.mp4
+!docs/demo.gif
