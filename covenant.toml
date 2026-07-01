@@ -1,0 +1,10 @@
+# Covenant configuration. Commit this alongside covenant.lock.json so `covenant
+# check` runs the same way in CI as it does locally.
+
+[server]
+# Reach the MCP server over stdio (a launch command) OR http (a url) — set one.
+command = "python examples/mcp_server.py"
+# url = "http://localhost:8000/mcp"
+
+[baseline]
+path = "covenant.lock.json"
