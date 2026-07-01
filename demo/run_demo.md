@@ -4,8 +4,8 @@ Nothing is simulated. A real MCP client talks through Warden to a real local MCP
 server; the drift is a real edit to a live tool. Run each command in order.
 
 **Prep (once):** `docker compose up -d --build` then `./demo/reset.ps1`
-Keep a second terminal open on the live surface: `./demo/watch.ps1` (or the
-dashboard at http://localhost:8080/ once Hour 5 lands).
+Keep the live surface visible: the dashboard at http://localhost:8080/ (best on
+camera) or the terminal view `./demo/watch.ps1`.
 
 | # | Beat (0:00–1:00) | Command | What the viewer sees |
 |---|------------------|---------|----------------------|
