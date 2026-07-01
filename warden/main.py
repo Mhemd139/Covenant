@@ -3,26 +3,40 @@
 Core pipeline: proxy -> contract snapshot -> schema-diff drift detection -> quarantine.
 """
 
+import asyncio
 import os
 from contextlib import asynccontextmanager
 
 import httpx
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
 
 from . import capture, db, drift, proxy
 
 
+async def _list_upstream_tools(url: str, attempts: int = 6, delay: float = 0.5):
+    """Connect to the upstream MCP server and list its tools, retrying the connect.
+
+    A drift edit restarts the upstream container, so a refresh fired right after may
+    race the restart; retry so Warden-owned detection is reliable on cue."""
+    last_err = None
+    for _ in range(attempts):
+        try:
+            async with streamablehttp_client(url) as (read, write, _):
+                async with ClientSession(read, write) as session:
+                    await session.initialize()
+                    return (await session.list_tools()).tools
+        except Exception as e:  # connection races during restart
+            last_err = e
+            await asyncio.sleep(delay)
+    raise HTTPException(status_code=503, detail=f"upstream MCP not reachable: {last_err}")
+
+
 async def refresh_upstream(app: FastAPI) -> dict:
     """Warden itself connects to the upstream MCP server, lists tools, snapshots,
     and runs drift detection — independent of any client re-listing."""
-    url = app.state.upstream_url
-    async with streamablehttp_client(url) as (read, write, _):
-        async with ClientSession(read, write) as session:
-            await session.initialize()
-            tools = (await session.list_tools()).tools
-
+    tools = await _list_upstream_tools(app.state.upstream_url)
     norm = [capture.normalize_tool(t) for t in tools]
     captured = await capture.capture_tools(app.state.pool, norm)
     detected = await app.state.detect(app.state.pool, norm)

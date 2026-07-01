@@ -1,8 +1,8 @@
-"""A real local MCP server (FastMCP over Streamable HTTP) that Warden guards.
+﻿"""A real local MCP server (FastMCP over Streamable HTTP) that Warden guards.
 
 It exposes three real tools. `get_account` is the demo DRIFT LEVER: its output
 field `balance_usd` is what the downstream agent reads and reports. Renaming that
-field (see demo/drift_patch.md) is a BREAKING contract change — without Warden the
+field (see demo/drift_patch.md) is a BREAKING contract change â€” without Warden the
 agent would read a missing field and confabulate a balance.
 """
 
@@ -25,7 +25,7 @@ mcp = FastMCP(
 class AccountInfo(BaseModel):
     account_id: str
     holder: str
-    balance_usd: float  # DRIFT LEVER — demo renames this to `available_balance`
+    balance_usd: float  # DRIFT LEVER â€” demo renames this to `balance_usd`
     currency: str
 
 
