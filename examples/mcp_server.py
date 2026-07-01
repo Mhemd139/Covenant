@@ -15,7 +15,15 @@ import os
 from mcp.server.fastmcp import FastMCP
 from pydantic import BaseModel
 
-mcp = FastMCP("covenant-example-bank")
+# json_response + stateless keep HTTP responses as single JSON bodies (no SSE), so
+# the proxy path is deterministic; these are ignored under stdio (Layer 0).
+mcp = FastMCP(
+    "covenant-example-bank",
+    host="127.0.0.1",
+    port=int(os.environ.get("PORT", "8000")),
+    json_response=True,
+    stateless_http=True,
+)
 
 DRIFT = os.environ.get("COVENANT_DRIFT") == "1"
 
@@ -74,4 +82,7 @@ def convert_currency(amount: float, to_currency: str = "EUR") -> Conversion:
 
 
 if __name__ == "__main__":
-    mcp.run()
+    if os.environ.get("COVENANT_HTTP") == "1":
+        mcp.run(transport="streamable-http")  # for the Layer 1 proxy demo
+    else:
+        mcp.run()  # stdio, the Layer 0 default

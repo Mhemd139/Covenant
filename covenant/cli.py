@@ -76,5 +76,35 @@ def check(
     raise typer.Exit(report.exit_code(changes, strict=strict))
 
 
+@app.command()
+def proxy(
+    upstream: str = typer.Option(..., "--upstream", "-u", help="Upstream MCP server URL to guard."),
+    baseline: str = typer.Option("covenant.lock.json", "--baseline", "-b"),
+    host: str = typer.Option("127.0.0.1", "--host"),
+    port: int = typer.Option(9000, "--port", "-p"),
+) -> None:
+    """Run the transparent proxy: forward to the upstream, quarantine drifted tools."""
+    try:
+        import uvicorn
+
+        from .proxy.server import create_app
+    except ImportError as e:
+        err.print('[red]error:[/red] proxy needs extras: pip install "covenant-mcp[proxy]"')
+        raise typer.Exit(2) from e
+
+    try:
+        _, base_tools = read_baseline(baseline)
+    except CovenantError as e:
+        err.print(f"[red]error:[/red] {e}")
+        raise typer.Exit(2) from e
+
+    fastapi_app = create_app(upstream, base_tools)
+    console.print(f"[green]Covenant proxy[/green] guarding [cyan]{upstream}[/cyan] "
+                  f"at [cyan]http://{host}:{port}/mcp[/cyan]")
+    console.print(f"[dim]baseline: {baseline} ({len(base_tools)} tools) | "
+                  f"POST http://{host}:{port}/covenant/refresh to re-check[/dim]")
+    uvicorn.run(fastapi_app, host=host, port=port, log_level="warning")
+
+
 if __name__ == "__main__":
     app()
