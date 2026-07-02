@@ -113,9 +113,11 @@ x 1 breaking change(s) - downstream agents would fail silently. Fix or quarantin
 For drift a fingerprint can't see — same shape, changed *meaning*, like a balance quietly rescaled from dollars to cents — add the LLM judge:
 
 ```bash
-pip install -e ".[judge]"        # needs ANTHROPIC_API_KEY
+pip install -e ".[judge]"
 covenant check --judge           # try it: COVENANT_SEMANTIC_DRIFT=1 covenant check --judge --strict
 ```
+
+The judge model is set with `[judge] model` in `covenant.toml`; the name picks the provider — `claude-*` models use `ANTHROPIC_API_KEY`, `gemini-*` models use `GOOGLE_API_KEY`.
 
 Judge verdicts are **advisory by design**: they render DEGRADED (fail only under `--strict`), never BREAKING — a probabilistic detector must not trigger quarantine. Full rationale: [Layer 3 design spec](docs/superpowers/specs/2026-07-03-covenant-layer3-behavioral-probes-design.md).
 

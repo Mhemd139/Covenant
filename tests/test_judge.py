@@ -46,3 +46,17 @@ def test_model_override_wins(monkeypatch):
     monkeypatch.setattr(judge_mod, "_complete", fake)
     judge_probe("t", None, {}, {}, {}, model="custom-model")
     assert calls["model"] == "custom-model"
+
+
+def test_gemini_models_route_to_google(monkeypatch):
+    fake, calls = _fake_complete('{"drift": false, "reason": "ok"}')
+    monkeypatch.setattr(judge_mod, "_complete_google", fake)
+    judge_probe("t", None, {}, {}, {}, model="gemini-2.5-flash")
+    assert calls["model"] == "gemini-2.5-flash"
+
+
+def test_default_model_routes_to_anthropic(monkeypatch):
+    fake, calls = _fake_complete('{"drift": false, "reason": "ok"}')
+    monkeypatch.setattr(judge_mod, "_complete_anthropic", fake)
+    judge_probe("t", None, {}, {}, {})
+    assert calls["model"] == judge_mod.DEFAULT_MODEL

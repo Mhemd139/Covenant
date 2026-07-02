@@ -23,7 +23,7 @@ COVENANT_BEHAVIOR_DRIFT=1 covenant check # body-only drift (schema identical); p
 | 0 contract core | `covenant/*.py` | Depends only on `mcp`, `typer`, `rich`. `diff.py` is pure (no I/O). |
 | 1 proxy + quarantine | `covenant/proxy/` | `fastapi`/`httpx`/`uvicorn` are the `[proxy]` extra, lazily imported in `cli.py`. |
 | 2 store | `covenant/store/` | `asyncpg` is the `[store]` extra. Store writes are best-effort: log and swallow, never fail the request path. |
-| 3 probes + judge | `covenant/fingerprint.py`, `covenant/judge/` | Probes *execute* tools at snapshot/check time (list read-only tools only). `anthropic` is the `[judge]` extra, imported on use. |
+| 3 probes + judge | `covenant/fingerprint.py`, `covenant/judge/` | Probes *execute* tools at snapshot/check time (list read-only tools only). `anthropic`/`google-genai` are the `[judge]` extra, imported on use; the model-name prefix picks the provider. |
 
 Design specs (rationale, rule tables, named decisions) live in `docs/superpowers/specs/` — read the relevant spec before changing classifier or proxy behavior.
 
