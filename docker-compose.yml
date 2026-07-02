@@ -1,53 +1,24 @@
+# Local Postgres for Covenant's Layer 2 contract store.
+#   docker compose up -d db
+#   DATABASE_URL=postgresql://covenant:covenant@127.0.0.1:5432/covenant
+# Reversible: `docker compose down -v` removes the container and its volume.
+
 services:
   db:
-    image: postgres:16
+    image: postgres:16-alpine
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-covenant}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-covenant}
-      POSTGRES_DB: ${POSTGRES_DB:-covenant}
+      POSTGRES_USER: covenant
+      POSTGRES_PASSWORD: covenant
+      POSTGRES_DB: covenant
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./warden/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-covenant} -d ${POSTGRES_DB:-covenant}"]
+      test: ["CMD-SHELL", "pg_isready -U covenant"]
       interval: 3s
       timeout: 3s
       retries: 10
 
-  test-mcp:
-    build:
-      context: .
-      dockerfile: test_mcp_server/Dockerfile
-    environment:
-      PORT: "8000"
-      # `delegate` recurses THROUGH Warden (not the raw server), so the A2A depth
-      # breaker sees every hop.
-      WARDEN_SELF_URL: http://warden:8080/mcp
-    # Bind-mount source so a drift edit + `docker compose restart test-mcp`
-    # reloads the tool without a rebuild (the demo lever).
-    volumes:
-      - ./test_mcp_server:/app/test_mcp_server:ro
-    ports:
-      - "${TEST_MCP_PORT:-8000}:8000"
-
-  warden:
-    build:
-      context: .
-      dockerfile: warden/Dockerfile
-    environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-covenant}:${POSTGRES_PASSWORD:-covenant}@db:5432/${POSTGRES_DB:-covenant}
-      UPSTREAM_MCP_URL: ${UPSTREAM_MCP_URL:-http://test-mcp:8000/mcp}
-    volumes:
-      - ./warden:/app/warden:ro
-    ports:
-      - "${WARDEN_PORT:-8080}:8080"
-    depends_on:
-      db:
-        condition: service_healthy
-      test-mcp:
-        condition: service_started
-
 volumes:
-  pgdata:
+  pgdata: {}

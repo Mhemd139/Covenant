@@ -1,0 +1,65 @@
+"""Render classifier results: exit codes, machine JSON, and a rich terminal view.
+
+Exit-code policy (Layer 0 is a review gate, not a runtime guard): breaking ⇒ 1;
+degraded ⇒ 1 only under ``--strict``; otherwise 0.
+"""
+
+from __future__ import annotations
+
+import json
+from dataclasses import asdict
+
+from rich.console import Console
+from rich.table import Table
+
+from .diff import Change
+
+_TIER_STYLE = {"breaking": "bold red", "degraded": "yellow", "compatible": "green"}
+_TIER_ORDER = {"breaking": 0, "degraded": 1, "compatible": 2}
+
+
+def exit_code(changes: list[Change], strict: bool) -> int:
+    tiers = {c.tier for c in changes}
+    if "breaking" in tiers:
+        return 1
+    if strict and "degraded" in tiers:
+        return 1
+    return 0
+
+
+def to_json(changes: list[Change]) -> str:
+    return json.dumps([asdict(c) for c in changes], indent=2)
+
+
+def render(changes: list[Change], strict: bool, console: Console | None = None) -> None:
+    console = console or Console()
+    if not changes:
+        console.print("[green]OK no schema drift[/green] - contract matches the baseline.")
+        console.print("[dim]note: a clean check means no *schema* drift, not 'contract safe' "
+                      "(behavioral / material-description drift is not checked here).[/dim]")
+        return
+
+    table = Table(title="Covenant - contract drift", show_lines=False)
+    table.add_column("tier", no_wrap=True)
+    table.add_column("location", no_wrap=True)
+    table.add_column("change")
+
+    for c in sorted(changes, key=lambda c: (_TIER_ORDER.get(c.tier, 9), c.location)):
+        style = _TIER_STYLE.get(c.tier, "")
+        msg = c.message + (f"  [dim]({c.note})[/dim]" if c.note else "")
+        table.add_row(f"[{style}]{c.tier.upper()}[/{style}]", c.location, msg)
+
+    console.print(table)
+
+    breaking = sum(c.tier == "breaking" for c in changes)
+    degraded = sum(c.tier == "degraded" for c in changes)
+    if breaking:
+        console.print(f"[bold red]x {breaking} breaking change(s)[/bold red] - "
+                      "downstream agents would fail silently. Fix or quarantine.")
+    elif degraded and strict:
+        console.print(f"[yellow]x {degraded} degraded change(s)[/yellow] - failing under --strict.")
+    elif degraded:
+        console.print(f"[yellow]! {degraded} degraded change(s)[/yellow] - review; "
+                      "not failing (use --strict to fail).")
+    else:
+        console.print("[green]OK only compatible changes.[/green]")
