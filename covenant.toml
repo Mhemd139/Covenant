@@ -9,6 +9,10 @@ command = "python examples/mcp_server.py"
 [baseline]
 path = "covenant.lock.json"
 
+[judge]
+# The model name picks the provider: claude-* -> ANTHROPIC_API_KEY, gemini-* -> GOOGLE_API_KEY.
+model = "gemini-2.5-flash"
+
 # Layer 3: behavioral probes — example calls executed at snapshot/check time to
 # fingerprint what tools *actually return*. Only list read-only tools.
 
