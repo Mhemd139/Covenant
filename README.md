@@ -134,6 +134,7 @@ covenant proxy --upstream http://localhost:8000/mcp --port 9000
 - `POST /covenant/refresh` — Covenant re-lists the upstream itself and re-checks. Detection is proxy-owned by design: a client's `tools/list` can arrive *after* the call it should have protected, so enforcement never depends on client behavior.
 - `GET /covenant/status` — currently quarantined tools and why.
 - `GET /covenant/calls` — recent call log with latency and outcomes.
+- `GET /covenant/metrics` — Prometheus metrics: per-tool call counters (ok/error/blocked), latency histograms, drift events, quarantine gauge. `docker compose up -d prometheus grafana` gives a provisioned dashboard at `http://localhost:3000` — the quarantine stat flips green→red within one scrape of a drift.
 
 Try it end-to-end with a live agent-style client: [examples/demo_layer1.py](examples/demo_layer1.py).
 
@@ -160,7 +161,7 @@ Covenant is built in dependency-ordered layers; each ships alone and each higher
 | 1 | Transparent proxy + quarantine | ✅ shipped |
 | 2 | Postgres contract store (call log, drift events, durable quarantine) | ✅ shipped |
 | 3 | Behavioral probes — response fingerprints + LLM judge for semantic drift | ✅ shipped |
-| 4 | Observability — OTel spans, Prometheus, dashboard | roadmap |
+| 4 | Observability — Prometheus metrics + Grafana dashboard (OTel deferred) | ✅ shipped |
 | 5 | K8s operator + Helm — `MCPContract` CRD, probes as Jobs | roadmap |
 
 Design specs for the shipped layers live in [docs/superpowers/specs](docs/superpowers/specs).

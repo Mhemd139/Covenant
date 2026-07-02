@@ -31,6 +31,7 @@ from .._types import JsonDict
 from ..store.base import Store
 from ..store.memory import InMemoryStore
 from .detect import detect
+from .metrics import Metrics
 from .quarantine import Quarantine
 
 log = logging.getLogger("covenant.proxy")
@@ -111,6 +112,7 @@ def _is_error(resp_json: object) -> bool:
 async def _proxy(app: FastAPI, request: Request) -> Response:
     q: Quarantine = app.state.q
     store: Store = app.state.store
+    metrics: Metrics = app.state.metrics
     body = await request.body()
 
     rpc = None
@@ -131,6 +133,7 @@ async def _proxy(app: FastAPI, request: Request) -> Response:
             f"tool unavailable - '{tool}' quarantined by Covenant "
             f"(contract drift: {q.reason(tool)})",
         )
+        metrics.record_call(tool, "blocked")
         await _safe(store.record_call(tool, method, 0, True, True))
         return Response(content=json.dumps(blocked), media_type="application/json")
 
@@ -168,10 +171,13 @@ async def _proxy(app: FastAPI, request: Request) -> Response:
         tools = ((resp_json.get("result") or {}).get("tools")) or []
         breaking = detect(app.state.baseline, tools)
         q.sync(breaking)
+        metrics.quarantined.set(len(q.all()))
         await _safe(store.sync_quarantine(breaking))
 
     if method == "tools/call" and isinstance(tool, str):
-        await _safe(store.record_call(tool, method, latency_ms, _is_error(resp_json), False))
+        is_err = _is_error(resp_json)
+        metrics.record_call(tool, "error" if is_err else "ok", latency_ms / 1000)
+        await _safe(store.record_call(tool, method, latency_ms, is_err, False))
 
     return Response(
         content=raw, status_code=up_resp.status_code,
@@ -207,6 +213,7 @@ def create_app(
     app.state.http = http_client or httpx.AsyncClient(timeout=30.0)
     app.state.lister = lister
     app.state.store = store or InMemoryStore()
+    app.state.metrics = Metrics()
 
     @app.get("/covenant/status")
     async def status() -> JsonDict:
@@ -226,10 +233,17 @@ def create_app(
             raise HTTPException(status_code=502, detail=f"upstream list failed: {e}") from e
         breaking = detect(app.state.baseline, tools)
         app.state.q.sync(breaking)
+        app.state.metrics.quarantined.set(len(app.state.q.all()))
         await _safe(app.state.store.sync_quarantine(breaking))
         for tool, reason in breaking.items():
+            app.state.metrics.drift.labels(severity="breaking").inc()
             await _safe(app.state.store.record_drift(tool, "breaking", [{"message": reason}]))
         return {"quarantined": app.state.q.all(), "checked": len(tools)}
+
+    @app.get("/covenant/metrics")
+    async def metrics() -> Response:
+        payload, content_type = app.state.metrics.render()
+        return Response(content=payload, media_type=content_type)
 
     @app.api_route("/mcp", methods=["GET", "POST", "DELETE"])
     async def mcp(request: Request) -> Response:
