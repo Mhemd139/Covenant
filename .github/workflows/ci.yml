@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: covenant
+          POSTGRES_PASSWORD: covenant
+          POSTGRES_DB: covenant
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U covenant"
+          --health-interval 3s
+          --health-timeout 3s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: pip install -e ".[dev]"
+      - run: ruff check .
+      - run: mypy covenant
+      - run: pytest
+        env:
+          COVENANT_TEST_DB: postgresql://covenant:covenant@localhost:5432/covenant
+
+  # Dogfood: Covenant lints its own example server's contract on every push,
+  # then injects a real breaking change and asserts the linter catches it.
+  contract-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e .
+      - name: covenant check (clean baseline)
+        run: covenant check
+      - name: covenant check catches injected breaking drift
+        run: |
+          set +e
+          COVENANT_DRIFT=1 covenant check
+          code=$?
+          set -e
+          if [ "$code" -ne 1 ]; then
+            echo "::error::expected exit 1 (breaking drift), got $code"
+            exit 1
+          fi
+          echo "breaking drift correctly detected (exit 1)"
