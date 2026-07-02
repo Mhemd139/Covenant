@@ -92,7 +92,10 @@ async def _run_probes(config: Config, probes: list[Probe]) -> list[JsonDict]:
     records: list[JsonDict] = []
     async with _session(config) as session:
         for probe in probes:
-            result = await session.call_tool(probe.tool, probe.args)
+            try:
+                result = await session.call_tool(probe.tool, probe.args)
+            except Exception as e:  # noqa: BLE001 - name the probe so a config typo isn't a "connection" error
+                raise CovenantError(f"probe {probe.tool} failed: {e}") from e
             response, is_error, error = _resolve_result(result)
             records.append({
                 "tool": probe.tool,

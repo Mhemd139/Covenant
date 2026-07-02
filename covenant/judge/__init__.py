@@ -110,6 +110,9 @@ def judge_probe(
         raw = raw.strip("`").removeprefix("json").strip()
     try:
         data = json.loads(raw)
-        return Verdict(drift=bool(data["drift"]), reason=str(data["reason"]))
+        drift = data["drift"]
+        if not isinstance(drift, bool):
+            raise TypeError(f"drift must be a boolean, got {type(drift).__name__}")
+        return Verdict(drift=drift, reason=str(data["reason"]))
     except (json.JSONDecodeError, KeyError, TypeError) as e:
         raise CovenantError(f"judge returned an unparseable verdict: {raw!r}") from e
