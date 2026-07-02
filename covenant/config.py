@@ -77,7 +77,10 @@ def load_config(path: str | Path = "covenant.toml", server_override: str | None 
     if not command and not url:
         raise ConfigError("no server configured: set [server].command or .url, or pass --server")
 
-    judge_model = (data.get("judge") or {}).get("model")
+    judge = data.get("judge") or {}
+    if not isinstance(judge, dict):
+        raise ConfigError("[judge] must be a table")
+    judge_model = judge.get("model")
     if judge_model is not None and not isinstance(judge_model, str):
         raise ConfigError("[judge].model must be a string")
 
