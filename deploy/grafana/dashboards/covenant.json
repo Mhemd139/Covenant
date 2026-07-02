@@ -1,0 +1,66 @@
+{
+  "title": "Covenant — MCP contract firewall",
+  "uid": "covenant",
+  "timezone": "browser",
+  "refresh": "5s",
+  "time": { "from": "now-15m", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Calls by outcome (rate/min)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "sum by (tool, outcome) (rate(covenant_calls_total[1m])) * 60",
+          "legendFormat": "{{tool}} · {{outcome}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "p95 call latency",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (tool, le) (rate(covenant_call_latency_seconds_bucket[5m])))",
+          "legendFormat": "{{tool}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Quarantined tools",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 6 },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [{ "expr": "covenant_quarantined_tools" }]
+    },
+    {
+      "id": 4,
+      "title": "Drift events",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 6 },
+      "targets": [
+        {
+          "expr": "sum by (severity) (increase(covenant_drift_total[5m]))",
+          "legendFormat": "{{severity}}"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 39
+}
