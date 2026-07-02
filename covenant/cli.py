@@ -29,7 +29,7 @@ _server_opt = typer.Option(
 
 @app.command()
 def snapshot(
-    server: str = _server_opt,
+    server: str | None = _server_opt,
     force: bool = typer.Option(False, "--force", "-f", help="Overwrite an existing baseline."),
 ) -> None:
     """Introspect the server and write its tool contracts to the baseline."""
@@ -54,7 +54,7 @@ def snapshot(
 
 @app.command()
 def check(
-    server: str = _server_opt,
+    server: str | None = _server_opt,
     strict: bool = typer.Option(False, "--strict", help="Fail on degraded changes too."),
     json_out: bool = typer.Option(False, "--json", help="Emit changes as JSON."),
 ) -> None:
@@ -82,30 +82,28 @@ def proxy(
     baseline: str = typer.Option("covenant.lock.json", "--baseline", "-b"),
     host: str = typer.Option("127.0.0.1", "--host"),
     port: int = typer.Option(9000, "--port", "-p"),
-    database_url: str = typer.Option(
+    database_url: str | None = typer.Option(
         None, "--database-url", envvar="DATABASE_URL",
         help="Postgres URL to persist quarantine + call log (optional).",
     ),
 ) -> None:
     """Run the transparent proxy: forward to the upstream, quarantine drifted tools."""
     try:
-        import uvicorn
-
-        from .proxy.server import create_app
-    except ImportError as e:
-        err.print('[red]error:[/red] proxy needs extras: pip install "covenant-mcp[proxy]"')
-        raise typer.Exit(2) from e
-
-    store = None
-    if database_url:
         try:
-            from .store.postgres import PostgresStore
-        except ImportError as e:
-            err.print('[red]error:[/red] persistence needs: pip install "covenant-mcp[store]"')
-            raise typer.Exit(2) from e
-        store = PostgresStore(database_url)
+            import uvicorn
 
-    try:
+            from .proxy.server import create_app
+        except ImportError as e:
+            raise CovenantError('proxy needs extras: pip install "covenant-mcp[proxy]"') from e
+
+        store = None
+        if database_url:
+            try:
+                from .store.postgres import PostgresStore
+            except ImportError as e:
+                raise CovenantError('persistence needs: pip install "covenant-mcp[store]"') from e
+            store = PostgresStore(database_url)
+
         _, base_tools = read_baseline(baseline)
     except CovenantError as e:
         err.print(f"[red]error:[/red] {e}")
