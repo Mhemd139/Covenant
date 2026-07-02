@@ -56,3 +56,9 @@ CodeRabbit auto-reviewed PR #1 and raised 9 inline findings. Each was verified a
 | Spec map | Layer 0 spec's module map "missing" `proxy` | **Skipped** — proxy is Layer 1 scope, documented in the Layer 1 spec |
 
 After the fixes: `pytest` 87 passed / 3 skipped, `ruff` + `mypy --strict` clean, drift demo still 0 (clean) / 1 (breaking). This is the loop working as designed — an external reviewer found a real classifier bug, and the contract-check dogfood job plus the rule-table tests caught the fix landing correctly.
+
+## Layer 3 — behavioral probes + semantic judge (same day, second branch)
+
+`feat/layer3-behavioral-probes`. A clean schema check can't see a lying server, and most real MCP tools declare no `outputSchema` at all. Layer 3 adds `[[probes]]` (safe example calls in `covenant.toml`): `snapshot` fingerprints each response's *type shape* into the lock, `check` re-runs the probes and classifies drift **with the unchanged Layer 0 classifier** (responses are output-side by definition), rendered at location `behavior`. `covenant check --judge` (optional `[judge]` extra) additionally sends baseline sample + live response to an LLM for semantic drift (dollars→cents) — verdicts are advisory DEGRADED, never BREAKING, so a probabilistic detector cannot cause a quarantine outage.
+
+Verified end-to-end: 112 tests (22 new), ruff + strict mypy clean, lock still byte-deterministic after re-snapshot, `COVENANT_BEHAVIOR_DRIFT=1` (schema untouched, body renames a field) exits 1 via the probe path, and the classic `COVENANT_DRIFT=1` is now caught twice — declared schema and actual body. CI dogfood gained the behavioral lever. Design: `docs/superpowers/specs/2026-07-03-covenant-layer3-behavioral-probes-design.md`.

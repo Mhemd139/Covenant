@@ -1,14 +1,17 @@
-"""Load connection + baseline settings from covenant.toml, with CLI overrides.
+"""Load connection + baseline + probe settings from covenant.toml, with CLI overrides.
 
 A server is reached either over stdio (a ``command`` launched as a subprocess) or
 over HTTP (a ``url``). Exactly one must be resolved. A ``--server`` CLI override
 wins over the file and is treated as a URL if it looks like one, else a command.
+
+``[[probes]]`` entries are Layer 3's behavioral probes: example calls (tool + args)
+that snapshot/check will *execute* against the server — only list read-only tools.
 """
 
 from __future__ import annotations
 
 import tomllib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from ._types import JsonDict
@@ -18,14 +21,36 @@ DEFAULT_BASELINE = "covenant.lock.json"
 
 
 @dataclass
+class Probe:
+    tool: str
+    args: JsonDict
+
+
+@dataclass
 class Config:
     server_command: str | None
     server_url: str | None
     baseline_path: str
+    probes: list[Probe] = field(default_factory=list)
+    judge_model: str | None = None
 
 
 def _looks_like_url(value: str) -> bool:
     return value.startswith(("http://", "https://"))
+
+
+def _parse_probes(data: JsonDict) -> list[Probe]:
+    probes: list[Probe] = []
+    for i, entry in enumerate(data.get("probes") or []):
+        tool = entry.get("tool") if isinstance(entry, dict) else None
+        args = entry.get("args", {}) if isinstance(entry, dict) else None
+        if not isinstance(tool, str) or not tool or not isinstance(args, dict):
+            raise ConfigError(
+                f'probe #{i + 1} is invalid: each [[probes]] needs tool = "name" '
+                "and an optional args table"
+            )
+        probes.append(Probe(tool=tool, args=args))
+    return probes
 
 
 def load_config(path: str | Path = "covenant.toml", server_override: str | None = None) -> Config:
@@ -52,5 +77,15 @@ def load_config(path: str | Path = "covenant.toml", server_override: str | None 
     if not command and not url:
         raise ConfigError("no server configured: set [server].command or .url, or pass --server")
 
+    judge_model = (data.get("judge") or {}).get("model")
+    if judge_model is not None and not isinstance(judge_model, str):
+        raise ConfigError("[judge].model must be a string")
+
     baseline_path = (data.get("baseline", {}) or {}).get("path", DEFAULT_BASELINE)
-    return Config(server_command=command, server_url=url, baseline_path=baseline_path)
+    return Config(
+        server_command=command,
+        server_url=url,
+        baseline_path=baseline_path,
+        probes=_parse_probes(data),
+        judge_model=judge_model,
+    )

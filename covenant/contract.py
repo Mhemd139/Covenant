@@ -53,8 +53,10 @@ def contract_from_tool(tool: JsonDict) -> ToolContract:
     )
 
 
-def to_baseline(contracts: list[ToolContract], server: str) -> JsonDict:
-    return {
+def to_baseline(
+    contracts: list[ToolContract], server: str, probes: list[JsonDict] | None = None
+) -> JsonDict:
+    data: JsonDict = {
         "covenant_version": BASELINE_VERSION,
         "server": server,
         "tools": {
@@ -67,16 +69,26 @@ def to_baseline(contracts: list[ToolContract], server: str) -> JsonDict:
             for c in contracts
         },
     }
+    if probes:
+        # Sorted so the lock stays deterministic; each record carries the response
+        # fingerprint plus the raw sample the judge compares against.
+        data["probes"] = sorted(probes, key=lambda p: (p["tool"], _canonical(p.get("args"))))
+    return data
 
 
-def write_baseline(path: str | Path, contracts: list[ToolContract], server: str) -> None:
-    data = to_baseline(contracts, server)
+def write_baseline(
+    path: str | Path,
+    contracts: list[ToolContract],
+    server: str,
+    probes: list[JsonDict] | None = None,
+) -> None:
+    data = to_baseline(contracts, server, probes)
     text = json.dumps(data, indent=2, sort_keys=True) + "\n"
     Path(path).write_text(text, encoding="utf-8")
 
 
-def read_baseline(path: str | Path) -> tuple[str, list[JsonDict]]:
-    """Read a baseline file; return (server, tools) where tools are wire-shape dicts."""
+def read_baseline(path: str | Path) -> tuple[str, list[JsonDict], list[JsonDict]]:
+    """Read a baseline file; return (server, wire-shape tool dicts, probe records)."""
     p = Path(path)
     if not p.exists():
         raise BaselineError(f"baseline not found: {p} (run `covenant snapshot` first)")
@@ -94,4 +106,4 @@ def read_baseline(path: str | Path) -> tuple[str, list[JsonDict]]:
         }
         for name, t in (data.get("tools") or {}).items()
     ]
-    return data.get("server", ""), tools
+    return data.get("server", ""), tools, data.get("probes") or []
