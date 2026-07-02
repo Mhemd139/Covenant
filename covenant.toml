@@ -8,3 +8,14 @@ command = "python examples/mcp_server.py"
 
 [baseline]
 path = "covenant.lock.json"
+
+# Layer 3: behavioral probes — example calls executed at snapshot/check time to
+# fingerprint what tools *actually return*. Only list read-only tools.
+
+[[probes]]
+tool = "get_account"
+args = { account_id = "acct-001" }
+
+[[probes]]
+tool = "get_transactions"
+args = { account_id = "acct-001" }

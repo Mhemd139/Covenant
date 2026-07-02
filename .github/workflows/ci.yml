@@ -59,3 +59,14 @@ jobs:
             exit 1
           fi
           echo "breaking drift correctly detected (exit 1)"
+      - name: covenant check catches behavioral drift (schema identical)
+        run: |
+          set +e
+          COVENANT_BEHAVIOR_DRIFT=1 covenant check
+          code=$?
+          set -e
+          if [ "$code" -ne 1 ]; then
+            echo "::error::expected exit 1 (behavioral drift), got $code"
+            exit 1
+          fi
+          echo "behavioral drift correctly detected (exit 1)"

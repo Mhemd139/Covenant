@@ -13,6 +13,7 @@ Covenant makes the contract explicit, versioned, and enforced:
 - **`covenant snapshot`** — introspect an MCP server (stdio or streamable-HTTP) and commit its tool contracts to a deterministic `covenant.lock.json`
 - **`covenant check`** — diff the live server against the baseline, classify every change **BREAKING / DEGRADED / COMPATIBLE**, and exit non-zero in CI when the contract breaks
 - **`covenant proxy`** — a transparent reverse-proxy that **quarantines** drifted tools at runtime, so downstream agents get a clean "tool unavailable" instead of silently hallucinating
+- **`[[probes]]` + `--judge`** — behavioral fingerprints of what tools **actually return** (works even when a server declares no `outputSchema`), plus an optional LLM judge for semantic drift
 
 ## Quickstart
 
@@ -26,20 +27,24 @@ Snapshot the bundled example server, then break it for real — `COVENANT_DRIFT=
 
 ```bash
 $ covenant check
-OK no schema drift - contract matches the baseline.
+OK no drift - contract matches the baseline.
 
 $ COVENANT_DRIFT=1 covenant check
-                         Covenant - contract drift
-+-------------------------------------------------------------------------+
-| tier       | location | change                                          |
-|------------+----------+-------------------------------------------------|
-| BREAKING   | output   | output field 'balance_usd' removed              |
-| COMPATIBLE | output   | output required field 'available_balance' added |
-+-------------------------------------------------------------------------+
-x 1 breaking change(s) - downstream agents would fail silently.
+                                  Covenant - contract drift
++--------------------------------------------------------------------------------------------+
+| tier       | location | change                                                             |
+|------------+----------+--------------------------------------------------------------------|
+| BREAKING   | behavior | probe get_account: output field 'balance_usd' removed              |
+| BREAKING   | output   | output field 'balance_usd' removed                                 |
+| COMPATIBLE | behavior | probe get_account: output optional field 'available_balance' added |
+| COMPATIBLE | output   | output required field 'available_balance' added                    |
++--------------------------------------------------------------------------------------------+
+x 2 breaking change(s) - downstream agents would fail silently. Fix or quarantine.
 $ echo $?
 1
 ```
+
+The lie is caught twice: in the declared schema (`output` rows) and — because the committed config probes the tool — in the actual response body (`behavior` rows).
 
 Point it at your own server via [covenant.toml](covenant.toml) (a stdio launch command **or** an HTTP URL), or override inline with `--server`:
 
@@ -79,6 +84,41 @@ Commit `covenant.toml` + `covenant.lock.json`, then:
 
 This repo runs exactly that against its own example server on every push — including a job that *injects* the breaking change and asserts Covenant catches it. See [ci.yml](.github/workflows/ci.yml).
 
+## Behavioral drift: probes + judge
+
+A schema check can't see a server that *lies* — schema unchanged, response different. And most real MCP tools declare no `outputSchema` at all, so there is nothing to diff. Probes cover both. Commit safe, **read-only** example calls in `covenant.toml`:
+
+```toml
+[[probes]]
+tool = "get_transactions"
+args = { account_id = "acct-001" }
+```
+
+`covenant snapshot` runs each probe and stores its response **fingerprint** — the type shape of what actually came back, never the values, which legitimately change — in the lock. `covenant check` re-runs the probes and classifies shape drift with the same severity model, at location `behavior`:
+
+```bash
+$ COVENANT_BEHAVIOR_DRIFT=1 covenant check   # response body renames a field; schema untouched
+                                     Covenant - contract drift
++-------------------------------------------------------------------------------------------------+
+| tier       | location | change                                                                  |
+|------------+----------+-------------------------------------------------------------------------|
+| BREAKING   | behavior | probe get_transactions: output field 'transactions[].amount_usd'        |
+|            |          | removed                                                                 |
+| COMPATIBLE | behavior | probe get_transactions: output optional field                           |
+|            |          | 'transactions[].amount_cents' added                                     |
++-------------------------------------------------------------------------------------------------+
+x 1 breaking change(s) - downstream agents would fail silently. Fix or quarantine.
+```
+
+For drift a fingerprint can't see — same shape, changed *meaning*, like a balance quietly rescaled from dollars to cents — add the LLM judge:
+
+```bash
+pip install -e ".[judge]"        # needs ANTHROPIC_API_KEY
+covenant check --judge           # try it: COVENANT_SEMANTIC_DRIFT=1 covenant check --judge --strict
+```
+
+Judge verdicts are **advisory by design**: they render DEGRADED (fail only under `--strict`), never BREAKING — a probabilistic detector must not trigger quarantine. Full rationale: [Layer 3 design spec](docs/superpowers/specs/2026-07-03-covenant-layer3-behavioral-probes-design.md).
+
 ## Runtime guard: the proxy
 
 The linter catches drift at ship time; the proxy contains it at runtime. It forwards every JSON-RPC exchange byte-for-byte (SSE passthrough included) so the client can't tell it's there — but a `tools/call` to a quarantined tool is short-circuited with a clean MCP `isError` result and never forwarded.
@@ -117,7 +157,7 @@ Covenant is built in dependency-ordered layers; each ships alone and each higher
 | 0 | Contract core — introspection, committed baseline, severity classifier, CLI | ✅ shipped |
 | 1 | Transparent proxy + quarantine | ✅ shipped |
 | 2 | Postgres contract store (call log, drift events, durable quarantine) | ✅ shipped |
-| 3 | Probe agent + RAG — behavioral fingerprints, LLM-judge for semantic drift | roadmap |
+| 3 | Behavioral probes — response fingerprints + LLM judge for semantic drift | ✅ shipped |
 | 4 | Observability — OTel spans, Prometheus, dashboard | roadmap |
 | 5 | K8s operator + Helm — `MCPContract` CRD, probes as Jobs | roadmap |
 
@@ -127,11 +167,11 @@ Design specs for the shipped layers live in [docs/superpowers/specs](docs/superp
 
 ```bash
 pip install -e ".[dev]"
-pytest                      # 86 tests; Postgres-backed tests skip without a DB
+pytest                      # 112 tests; Postgres-backed tests skip without a DB
 ruff check . && mypy covenant
 ```
 
-Layer boundaries are enforced by imports: the core (`covenant/*.py`) depends only on `mcp`, `typer`, `rich`; the proxy extras (`fastapi`, `httpx`, `uvicorn`) and store extras (`asyncpg`) are optional and lazily imported.
+Layer boundaries are enforced by imports: the core (`covenant/*.py`) depends only on `mcp`, `typer`, `rich`; the proxy extras (`fastapi`, `httpx`, `uvicorn`), store extra (`asyncpg`), and judge extra (`anthropic`) are optional and imported on use.
 
 ## License
 

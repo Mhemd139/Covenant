@@ -1,5 +1,82 @@
 {
   "covenant_version": "0.1.0",
+  "probes": [
+    {
+      "args": {
+        "account_id": "acct-001"
+      },
+      "fingerprint": {
+        "properties": {
+          "account_id": {
+            "type": "string"
+          },
+          "balance_usd": {
+            "type": "number"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "holder": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "sample": {
+        "account_id": "acct-001",
+        "balance_usd": 4210.0,
+        "currency": "USD",
+        "holder": "Ada Lovelace"
+      },
+      "tool": "get_account"
+    },
+    {
+      "args": {
+        "account_id": "acct-001"
+      },
+      "fingerprint": {
+        "properties": {
+          "account_id": {
+            "type": "string"
+          },
+          "transactions": {
+            "items": {
+              "properties": {
+                "amount_usd": {
+                  "type": "number"
+                },
+                "merchant": {
+                  "type": "string"
+                },
+                "txn_id": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "sample": {
+        "account_id": "acct-001",
+        "transactions": [
+          {
+            "amount_usd": -42.5,
+            "merchant": "Grocer & Co",
+            "txn_id": "t-1001"
+          },
+          {
+            "amount_usd": 1800.0,
+            "merchant": "Payroll Inc",
+            "txn_id": "t-1002"
+          }
+        ]
+      },
+      "tool": "get_transactions"
+    }
+  ],
   "server": "python examples/mcp_server.py",
   "tools": {
     "convert_currency": {
@@ -91,6 +168,24 @@
         "type": "object"
       },
       "schema_hash": "sha256:43abb25bb6afff16632fdcf65f2e92ecf5f64ab3e1ccf367b6c5b3d25b3288df"
+    },
+    "get_transactions": {
+      "description": "List recent transactions for an account.",
+      "inputSchema": {
+        "properties": {
+          "account_id": {
+            "title": "Account Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "account_id"
+        ],
+        "title": "get_transactionsArguments",
+        "type": "object"
+      },
+      "outputSchema": null,
+      "schema_hash": "sha256:554a5ad1c8a17f1bcfd7eb11c48a7080d6b5bea1dfff99688b887268305e310b"
     },
     "get_weather": {
       "description": "Return current weather for a city.",

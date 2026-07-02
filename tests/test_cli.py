@@ -56,3 +56,43 @@ def test_check_without_baseline_errors(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     r = runner.invoke(app, ["check", "--server", SERVER])
     assert r.exit_code == 2
+
+
+def _write_toml(tmp_path, extra=""):
+    (tmp_path / "covenant.toml").write_text(
+        f"[server]\ncommand = '{SERVER}'\n{extra}", encoding="utf-8"
+    )
+
+
+def test_probes_catch_behavioral_drift(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    _write_toml(tmp_path, '\n[[probes]]\ntool = "get_transactions"\n'
+                          'args = { account_id = "acct-001" }\n')
+    r = runner.invoke(app, ["snapshot"])
+    assert r.exit_code == 0, r.output
+    r = runner.invoke(app, ["check"])
+    assert r.exit_code == 0, r.output
+
+    monkeypatch.setenv("COVENANT_BEHAVIOR_DRIFT", "1")  # schema identical; response body lies
+    r = runner.invoke(app, ["check"])
+    assert r.exit_code == 1, r.output
+    assert "amount_usd" in r.output
+    assert "BREAKING" in r.output
+    assert "behavior" in r.output
+
+
+def test_probe_missing_from_baseline_errors(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    _write_toml(tmp_path)
+    runner.invoke(app, ["snapshot"])
+    _write_toml(tmp_path, '\n[[probes]]\ntool = "get_weather"\nargs = { city = "Haifa" }\n')
+    r = runner.invoke(app, ["check"])
+    assert r.exit_code == 2
+    assert "snapshot" in r.output
+
+
+def test_judge_without_probes_errors(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    runner.invoke(app, ["snapshot", "--server", SERVER])
+    r = runner.invoke(app, ["check", "--server", SERVER, "--judge"])
+    assert r.exit_code == 2

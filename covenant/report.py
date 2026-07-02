@@ -34,9 +34,9 @@ def to_json(changes: list[Change]) -> str:
 def render(changes: list[Change], strict: bool, console: Console | None = None) -> None:
     console = console or Console()
     if not changes:
-        console.print("[green]OK no schema drift[/green] - contract matches the baseline.")
-        console.print("[dim]note: a clean check means no *schema* drift, not 'contract safe' "
-                      "(behavioral / material-description drift is not checked here).[/dim]")
+        console.print("[green]OK no drift[/green] - contract matches the baseline.")
+        console.print("[dim]note: schemas and configured probes only - unprobed behavior "
+                      "and description materiality are not checked.[/dim]")
         return
 
     table = Table(title="Covenant - contract drift", show_lines=False)
