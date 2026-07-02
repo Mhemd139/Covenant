@@ -94,7 +94,7 @@ tool = "get_transactions"
 args = { account_id = "acct-001" }
 ```
 
-`covenant snapshot` runs each probe and stores its response **fingerprint** — the type shape of what actually came back, never the values, which legitimately change — in the lock. `covenant check` re-runs the probes and classifies shape drift with the same severity model, at location `behavior`:
+`covenant snapshot` runs each probe and stores its response **fingerprint** — the type shape of what actually came back — in the lock, alongside one **sample** response so the optional `--judge` pass has a baseline to compare meaning against. Shape drift is judged on the fingerprint alone; values legitimately change between runs. `covenant check` re-runs the probes and classifies shape drift with the same severity model, at location `behavior`:
 
 ```bash
 $ COVENANT_BEHAVIOR_DRIFT=1 covenant check   # response body renames a field; schema untouched

@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 
 from ._types import JsonDict
+from .errors import CovenantError
 
 
 def fingerprint(value: object) -> JsonDict:
@@ -33,7 +34,7 @@ def fingerprint(value: object) -> JsonDict:
         if shapes and all(s == shapes[0] for s in shapes):
             return {"type": "array", "items": shapes[0]}
         return {"type": "array"}
-    raise ValueError(f"cannot fingerprint non-JSON value of type {type(value).__name__}")
+    raise CovenantError(f"cannot fingerprint non-JSON value of type {type(value).__name__}")
 
 
 def probe_key(tool: str, args: JsonDict | None) -> str:

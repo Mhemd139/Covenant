@@ -2,6 +2,7 @@
 
 import pytest
 
+from covenant.errors import CovenantError
 from covenant.fingerprint import fingerprint, probe_key
 
 
@@ -30,7 +31,7 @@ def test_arrays_keep_items_only_when_uniform():
 
 
 def test_non_json_value_is_loud():
-    with pytest.raises(ValueError):
+    with pytest.raises(CovenantError):
         fingerprint({1, 2})
 
 
