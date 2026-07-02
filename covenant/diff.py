@@ -66,6 +66,16 @@ def _diff_type(
         tier = "compatible" if out else "degraded"
         return Change(tool, location, field, "union_narrowed", tier,
                       f"{location} field '{field}' no longer accepts null")
+
+    # A change that adds or removes a structural type (object/array) breaks the
+    # consumer's read model regardless of whether scalars also moved — so it must
+    # be classified before the pure widen/narrow branches, or a scalar↔[scalar,
+    # object] union would be under-classified as a mere widening.
+    if (added | removed) - _SCALAR:
+        tier = "breaking" if out else "degraded"
+        return Change(tool, location, field, "type_changed_structural", tier,
+                      f"{location} field '{field}' structural retype {sorted(tb)}->{sorted(tc)}")
+
     if added and not removed:
         tier = "degraded" if out else "compatible"
         return Change(tool, location, field, "union_widened", tier,
@@ -75,11 +85,6 @@ def _diff_type(
         return Change(tool, location, field, "union_narrowed", tier,
                       f"{location} field '{field}' narrowed its type to {sorted(tc)}")
 
-    structural = bool((added | removed) - _SCALAR)
-    if structural:
-        tier = "breaking" if out else "degraded"
-        return Change(tool, location, field, "type_changed_structural", tier,
-                      f"{location} field '{field}' structural retype {sorted(tb)}->{sorted(tc)}")
     note = "BREAKING for strict/code consumers; LLM consumers are type-tolerant" if out else None
     return Change(tool, location, field, "type_changed_scalar", "degraded",
                   f"{location} field '{field}' retyped {sorted(tb)} -> {sorted(tc)}", note)

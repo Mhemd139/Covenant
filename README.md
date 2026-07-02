@@ -97,7 +97,7 @@ Try it end-to-end with a live agent-style client: [examples/demo_layer1.py](exam
 
 ## Optional persistence
 
-By default the proxy keeps state in memory. Give it Postgres and quarantine survives restarts, and every call and drift event is persisted:
+By default the proxy keeps state in memory. Give it Postgres and quarantine survives restarts, with calls and drift events persisted when the store is reachable (writes are best-effort — see below):
 
 ```bash
 docker compose up -d db

@@ -219,6 +219,17 @@ def test_input_union_widened_is_compatible():
     assert c.tier == "compatible"
 
 
+def test_output_union_gaining_structural_member_is_breaking():
+    # scalar -> [scalar, object]: the field can now return an object where the
+    # agent expects a scalar. A structural member added to a union must classify
+    # as structural/breaking, not a mere degraded widening.
+    base = [tool(out=obj({"balance": {"type": "number"}}))]
+    curr = [tool(out=obj({"balance": {"type": ["number", "object"]}}))]
+    c = one(diff_tools(base, curr), location="output", field="balance")
+    assert c.tier == "breaking"
+    assert c.kind == "type_changed_structural"
+
+
 # ---- enums -----------------------------------------------------------------
 
 def test_input_enum_narrowed_is_degraded():

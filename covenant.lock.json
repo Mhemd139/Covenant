@@ -1,6 +1,6 @@
 {
   "covenant_version": "0.1.0",
-  "server": ".venv/Scripts/python.exe examples/mcp_server.py",
+  "server": "python examples/mcp_server.py",
   "tools": {
     "convert_currency": {
       "description": "Convert a USD amount to another currency.",

@@ -25,7 +25,14 @@ class InMemoryStore:
         self._status[tool] = (status, reason)
 
     async def sync_quarantine(self, breaking: dict[str, str]) -> None:
-        self._status = {tool: ("quarantined", reason) for tool, reason in breaking.items()}
+        # Match PostgresStore: clear only quarantined entries, preserve any other
+        # statuses set via set_status, then apply the new quarantine set.
+        self._status = {
+            tool: st for tool, st in self._status.items() if st[0] != "quarantined"
+        }
+        self._status.update(
+            {tool: ("quarantined", reason) for tool, reason in breaking.items()}
+        )
 
     async def load_quarantine(self) -> dict[str, str]:
         return {

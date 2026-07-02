@@ -14,6 +14,7 @@ path — a firewall must not drop traffic because its own telemetry hiccuped.
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import json
 import logging
@@ -23,7 +24,7 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 import httpx
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
 
 from .._types import JsonDict
@@ -33,6 +34,9 @@ from .detect import detect
 from .quarantine import Quarantine
 
 log = logging.getLogger("covenant.proxy")
+
+_STORE_WRITE_TIMEOUT = 2.0  # telemetry must never delay traffic
+_UPSTREAM_LIST_TIMEOUT = 10.0  # bound the Covenant-owned re-list
 
 Lister = Callable[[], Awaitable[list[JsonDict]]]
 
@@ -62,9 +66,13 @@ def _resp_headers(headers: httpx.Headers) -> dict[str, str]:
 
 
 async def _safe(coro: Awaitable[Any]) -> None:
-    """Await a store write; log and swallow failures so recording never breaks proxying."""
+    """Await a store write; log and swallow failures so recording never breaks proxying.
+
+    Bounded by a timeout: a hung store call (Postgres under load) must not block the
+    request path — a firewall must not stall traffic because its telemetry is slow.
+    """
     try:
-        await coro
+        await asyncio.wait_for(coro, timeout=_STORE_WRITE_TIMEOUT)
     except Exception as e:  # noqa: BLE001 - telemetry must not fail the request path
         log.warning("covenant store write failed: %s", e)
 
@@ -210,7 +218,12 @@ def create_app(
 
     @app.post("/covenant/refresh")
     async def refresh() -> JsonDict:
-        tools = await _list_upstream(app)
+        try:
+            tools = await asyncio.wait_for(_list_upstream(app), timeout=_UPSTREAM_LIST_TIMEOUT)
+        except TimeoutError as e:
+            raise HTTPException(status_code=502, detail="upstream did not respond in time") from e
+        except Exception as e:  # noqa: BLE001 - upstream failure is a bad gateway, not a 500
+            raise HTTPException(status_code=502, detail=f"upstream list failed: {e}") from e
         breaking = detect(app.state.baseline, tools)
         app.state.q.sync(breaking)
         await _safe(app.state.store.sync_quarantine(breaking))
