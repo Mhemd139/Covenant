@@ -9,9 +9,10 @@ unchanged by every higher layer.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from ._types import JsonDict
+from .fingerprint import fingerprint, probe_key
 
 _COMPOSED = ("$ref", "allOf", "anyOf", "oneOf")
 
@@ -230,4 +231,37 @@ def diff_tools(baseline: list[JsonDict], current: list[JsonDict]) -> list[Change
                 f"tool '{name}' was added",
             ))
 
+    return changes
+
+
+def diff_probes(baseline: list[JsonDict], live: list[JsonDict]) -> list[Change]:
+    """Diff live probe responses against baselined fingerprints (Layer 3).
+
+    Responses are output-side by definition, so the classifier's output rules apply
+    unchanged; results are relabeled ``behavior`` so a report distinguishes "the
+    schema changed" from "the actual response changed". Live probes without a
+    baselined counterpart are skipped — the CLI refuses to run in that state.
+    """
+    base_by = {probe_key(p["tool"], p.get("args")): p for p in baseline}
+    changes: list[Change] = []
+    for lp in live:
+        bp = base_by.get(probe_key(lp["tool"], lp.get("args")))
+        if bp is None:
+            continue
+        tool = str(lp["tool"])
+        if lp.get("is_error"):
+            changes.append(Change(
+                tool, "behavior", None, "probe_errored", "degraded",
+                f"probe {tool}: live call returned an error - {lp.get('error')}",
+            ))
+            continue
+        base_fp, live_fp = bp["fingerprint"], fingerprint(lp["response"])
+        if _type_set(base_fp) == {"object"} and _type_set(live_fp) == {"object"}:
+            raw = _diff_object(tool, "output", base_fp, live_fp)
+        else:
+            raw = _diff_field(tool, "output", "response", base_fp, live_fp)
+        changes += [
+            replace(c, location="behavior", message=f"probe {tool}: {c.message}")
+            for c in raw
+        ]
     return changes
