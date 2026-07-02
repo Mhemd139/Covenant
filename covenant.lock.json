@@ -1,0 +1,136 @@
+{
+  "covenant_version": "0.1.0",
+  "server": "python examples/mcp_server.py",
+  "tools": {
+    "convert_currency": {
+      "description": "Convert a USD amount to another currency.",
+      "inputSchema": {
+        "properties": {
+          "amount": {
+            "title": "Amount",
+            "type": "number"
+          },
+          "to_currency": {
+            "default": "EUR",
+            "title": "To Currency",
+            "type": "string"
+          }
+        },
+        "required": [
+          "amount"
+        ],
+        "title": "convert_currencyArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "amount": {
+            "title": "Amount",
+            "type": "number"
+          },
+          "converted": {
+            "title": "Converted",
+            "type": "number"
+          },
+          "rate": {
+            "title": "Rate",
+            "type": "number"
+          }
+        },
+        "required": [
+          "amount",
+          "rate",
+          "converted"
+        ],
+        "title": "Conversion",
+        "type": "object"
+      },
+      "schema_hash": "sha256:68bb26ec383ed5024a05802eecf012ea4791851cacc2148d620421ec2714ec44"
+    },
+    "get_account": {
+      "description": "Look up a bank account and its current balance.",
+      "inputSchema": {
+        "properties": {
+          "account_id": {
+            "title": "Account Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "account_id"
+        ],
+        "title": "get_accountArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "account_id": {
+            "title": "Account Id",
+            "type": "string"
+          },
+          "balance_usd": {
+            "title": "Balance Usd",
+            "type": "number"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "holder": {
+            "title": "Holder",
+            "type": "string"
+          }
+        },
+        "required": [
+          "account_id",
+          "holder",
+          "balance_usd",
+          "currency"
+        ],
+        "title": "Account",
+        "type": "object"
+      },
+      "schema_hash": "sha256:43abb25bb6afff16632fdcf65f2e92ecf5f64ab3e1ccf367b6c5b3d25b3288df"
+    },
+    "get_weather": {
+      "description": "Return current weather for a city.",
+      "inputSchema": {
+        "properties": {
+          "city": {
+            "title": "City",
+            "type": "string"
+          }
+        },
+        "required": [
+          "city"
+        ],
+        "title": "get_weatherArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "city": {
+            "title": "City",
+            "type": "string"
+          },
+          "conditions": {
+            "title": "Conditions",
+            "type": "string"
+          },
+          "temp_c": {
+            "title": "Temp C",
+            "type": "number"
+          }
+        },
+        "required": [
+          "city",
+          "temp_c",
+          "conditions"
+        ],
+        "title": "Weather",
+        "type": "object"
+      },
+      "schema_hash": "sha256:1160934564b2d31ec7e0390fd059837fddf31882335f115b0ff5e4e03f9e89d3"
+    }
+  }
+}
