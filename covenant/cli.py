@@ -62,14 +62,16 @@ def _check_probes(
     from .judge import judge_probe  # the [judge] extra is optional; import on use
 
     descriptions = {t["name"]: t.get("description") for t in base_tools}
-    shape_drifted = {c.tool for c in changes}
+    # A probe is identified by tool + args, so judge each live probe on its own
+    # merits: skip only the probes that themselves errored or shape-drifted, never
+    # a clean probe that happens to share a tool name with a drifted sibling.
     for r in live:
-        if r["is_error"] or r["tool"] in shape_drifted:
+        base = base_by[probe_key(r["tool"], r["args"])]  # every live key is baselined (see above)
+        if r["is_error"] or diff_probes([base], [r]):
             continue  # errors and shape drift are already reported; judge only clean shapes
-        sample = base_by[probe_key(r["tool"], r["args"])].get("sample")
         verdict = judge_probe(
             r["tool"], descriptions.get(r["tool"]), r["args"],
-            sample, r["response"], model=cfg.judge_model,
+            base.get("sample"), r["response"], model=cfg.judge_model,
         )
         if verdict.drift:
             changes.append(Change(
