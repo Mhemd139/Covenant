@@ -2,8 +2,8 @@
 
 import sys
 
-from covenant.config import Config
-from covenant.introspect import introspect
+from covenant.config import Config, Probe
+from covenant.introspect import introspect, run_probes
 
 
 def _example_config():
@@ -22,3 +22,10 @@ def test_get_account_output_schema_has_balance_usd():
     acct = next(t for t in tools if t["name"] == "get_account")
     assert acct["outputSchema"] is not None
     assert "balance_usd" in acct["outputSchema"]["properties"]
+
+
+def test_run_probes_resolves_a_real_tool_response():
+    (rec,) = run_probes(_example_config(), [Probe(tool="get_weather", args={"city": "Haifa"})])
+    assert rec["is_error"] is False
+    assert rec["response"]["city"] == "Haifa"
+    assert rec["response"]["temp_c"] == 21.5

@@ -46,7 +46,7 @@ def test_baseline_round_trips(tmp_path):
     path = tmp_path / "covenant.lock.json"
     write_baseline(path, contracts, server="python examples/mcp_server.py")
 
-    server, tools = read_baseline(path)
+    server, tools, _ = read_baseline(path)
     assert server == "python examples/mcp_server.py"
     assert tools[0]["name"] == "get_account"
     assert tools[0]["inputSchema"]["properties"]["id"]["type"] == "string"
