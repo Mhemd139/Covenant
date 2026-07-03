@@ -1,0 +1,16 @@
+# Image built from the repo Dockerfile: docker build -t covenant-mcp:0.1.0 .
+image:
+  repository: covenant-mcp
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+
+proxy:
+  enabled: true
+  upstream: ""            # REQUIRED: upstream MCP server URL, e.g. http://my-server:8000/mcp
+  port: 9000
+  # Name of a ConfigMap holding the committed covenant.lock.json under this key.
+  baselineConfigMap: covenant-baseline
+  baselineKey: covenant.lock.json
+
+operator:
+  enabled: true

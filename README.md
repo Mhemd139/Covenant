@@ -151,6 +151,20 @@ covenant proxy --upstream http://localhost:8000/mcp \
 
 Store failures are logged and never break the request path — a firewall must not drop traffic because its own telemetry hiccuped. Demo: [examples/demo_layer2.py](examples/demo_layer2.py).
 
+## Kubernetes: the `MCPContract` operator
+
+Declare contract conformance instead of scripting it. The Helm chart ships the proxy, a kopf operator, and an `MCPContract` CRD — the operator re-runs the contract check on each CR's own schedule, writes the verdict into status, and nudges the proxy to quarantine on drift:
+
+```bash
+docker build -t covenant-mcp:0.1.0 .
+helm install covenant deploy/helm/covenant --set proxy.upstream=http://my-server:8000/mcp
+kubectl create configmap covenant-baseline --from-file=covenant.lock.json
+kubectl apply -f examples/mcpcontract.yaml
+kubectl get mcpcontracts -w        # RESULT flips clean -> breaking when the server drifts
+```
+
+Design decisions (in-operator checks vs Jobs, per-CR scheduling, error-as-status): [Layer 5 design spec](docs/superpowers/specs/2026-07-03-covenant-layer5-k8s-operator-design.md).
+
 ## Architecture
 
 Covenant is built in dependency-ordered layers; each ships alone and each higher layer reuses the contract core.
@@ -162,7 +176,7 @@ Covenant is built in dependency-ordered layers; each ships alone and each higher
 | 2 | Postgres contract store (call log, drift events, durable quarantine) | ✅ shipped |
 | 3 | Behavioral probes — response fingerprints + LLM judge for semantic drift | ✅ shipped |
 | 4 | Observability — Prometheus metrics + Grafana dashboard (OTel deferred) | ✅ shipped |
-| 5 | K8s operator + Helm — `MCPContract` CRD, probes as Jobs | roadmap |
+| 5 | K8s operator + Helm — `MCPContract` CRD, scheduled in-operator checks | ✅ shipped |
 
 Design specs for the shipped layers live in [docs/superpowers/specs](docs/superpowers/specs).
 
