@@ -102,6 +102,11 @@ async def _list_upstream(app: FastAPI) -> list[JsonDict]:
         ]
 
 
+def _label(app: FastAPI, tool: str) -> str:
+    """Metric label for a tool name, clamped to the baseline set (cardinality guard)."""
+    return tool if tool in app.state.baseline_names else "unknown"
+
+
 def _is_error(resp_json: object) -> bool:
     if not isinstance(resp_json, dict):
         return False
@@ -133,7 +138,7 @@ async def _proxy(app: FastAPI, request: Request) -> Response:
             f"tool unavailable - '{tool}' quarantined by Covenant "
             f"(contract drift: {q.reason(tool)})",
         )
-        metrics.record_call(tool, "blocked")
+        metrics.record_call(_label(app, tool), "blocked")
         await _safe(store.record_call(tool, method, 0, True, True))
         return Response(content=json.dumps(blocked), media_type="application/json")
 
@@ -176,7 +181,7 @@ async def _proxy(app: FastAPI, request: Request) -> Response:
 
     if method == "tools/call" and isinstance(tool, str):
         is_err = _is_error(resp_json)
-        metrics.record_call(tool, "error" if is_err else "ok", latency_ms / 1000)
+        metrics.record_call(_label(app, tool), "error" if is_err else "ok", latency_ms / 1000)
         await _safe(store.record_call(tool, method, latency_ms, is_err, False))
 
     return Response(
@@ -214,6 +219,9 @@ def create_app(
     app.state.lister = lister
     app.state.store = store or InMemoryStore()
     app.state.metrics = Metrics()
+    # Clamp the metric label to known tools: a client-supplied name must not be able
+    # to mint unbounded Prometheus timeseries (label-cardinality DoS).
+    app.state.baseline_names = {t["name"] for t in baseline_tools}
 
     @app.get("/covenant/status")
     async def status() -> JsonDict:

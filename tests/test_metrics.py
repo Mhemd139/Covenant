@@ -84,6 +84,16 @@ def test_refresh_drift_sets_gauge_and_counts_drift():
     assert 'covenant_drift_total{severity="breaking"} 1.0' in text
 
 
+def test_unknown_tool_name_is_clamped_to_one_label():
+    app = create_app("http://up/mcp", BASE, http_client=mock_client(ok_handler))
+    client = TestClient(app)
+    for name in ("evil-1", "evil-2", "evil-3"):  # attacker-minted names must not fan out
+        client.post("/mcp", json=rpc_call(name))
+    text = client.get("/covenant/metrics").text
+    assert 'covenant_calls_total{outcome="ok",tool="unknown"} 3.0' in text
+    assert "evil" not in text
+
+
 def test_two_apps_do_not_share_a_registry():
     a = create_app("http://up/mcp", BASE, http_client=mock_client(ok_handler))
     b = create_app("http://up/mcp", BASE, http_client=mock_client(ok_handler))
