@@ -1,0 +1,6 @@
+apiVersion: v2
+name: covenant
+description: MCP contract-and-drift firewall - proxy, quarantine, and the MCPContract operator
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
