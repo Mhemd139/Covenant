@@ -41,7 +41,16 @@ real multi-hop fleet exists to trace.
 calls-by-outcome rate, p95 latency (`histogram_quantile` over buckets),
 quarantined-tools stat (green 0 / red ≥1), drift events. Compose runs
 Prometheus (scrapes the host-run proxy via `host.docker.internal`, 5s interval)
-and anonymous-admin Grafana on :3000.
+and anonymous-Viewer Grafana on :3000 — both bound to loopback only.
+
+## Security decisions
+
+- **Metric labels are clamped to baseline tool names** (else `"unknown"`): a
+  client-supplied tool name must not mint unbounded Prometheus timeseries
+  (label-cardinality DoS). The store call log is unaffected — an append-only
+  log records rows, not timeseries.
+- Compose binds Prometheus and Grafana to `127.0.0.1`; anonymous Grafana is
+  Viewer, not Admin.
 
 ## Demo
 
