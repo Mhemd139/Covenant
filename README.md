@@ -131,7 +131,7 @@ covenant proxy --upstream http://localhost:8000/mcp --port 9000
 # point your MCP client at http://127.0.0.1:9000/mcp
 ```
 
-- `POST /covenant/refresh` — Covenant re-lists the upstream itself and re-checks. Detection is proxy-owned by design: a client's `tools/list` can arrive *after* the call it should have protected, so enforcement never depends on client behavior.
+- `POST /covenant/refresh` — Covenant re-reads the baseline from disk (picking up a re-snapshot or an updated ConfigMap mount), then re-lists the upstream itself and re-checks. Detection is proxy-owned by design: a client's `tools/list` can arrive *after* the call it should have protected, so enforcement never depends on client behavior.
 - `GET /covenant/status` — currently quarantined tools and why.
 - `GET /covenant/calls` — recent call log with latency and outcomes.
 - `GET /covenant/metrics` — Prometheus metrics: per-tool call counters (ok/error/blocked), latency histograms, drift events, quarantine gauge. `docker compose up -d prometheus grafana` gives a provisioned dashboard at `http://localhost:3000` — the quarantine stat flips green→red within one scrape of a drift.

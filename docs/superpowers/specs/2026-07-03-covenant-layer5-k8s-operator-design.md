@@ -24,13 +24,23 @@ Deployment with least-privilege RBAC. One Dockerfile serves both roles.
   decoration time (30s poll); each CR keeps its own `spec.intervalSeconds`
   (default 300) enforced by `due()` against `status.lastCheckTime`. Cheap
   polls, per-contract schedules, no custom scheduler.
-- **A failed check is status, not an exception.** Unreachable server or bad
-  baseline → `result: error` in status; the operator must not crash-loop on
-  one bad contract. The only raised failure is `kopf.PermanentError` for a
-  misconfigured CR (missing ConfigMap key), which kopf reports without retry.
+- **A failed check is status, not an exception.** Unreachable server, malformed
+  baseline, or missing ConfigMap key → `result: error` in status; the operator
+  never raises from the timer. (An earlier draft raised `kopf.PermanentError`
+  for a missing key, but kopf timers re-fire regardless and the CR showed no
+  status at all — error-as-status is strictly more visible.) Error patches
+  zero the tier counts: kopf merge-patches status, so omitted counts would
+  leave a previous check's numbers on display next to `result: error`.
+- **Sync handlers on a sized executor.** kopf runs sync handlers in one shared
+  thread pool (default cpus+4); a check holds its slot for up to the MCP
+  transport timeout, so a few hung servers could starve every other CR's
+  timer. The operator pins `settings.execution.max_workers = 32`.
 - **Baseline from a ConfigMap** — the same committed `covenant.lock.json`,
   mounted by the proxy and read by the operator (`parse_baseline` extracted
-  from `read_baseline` for string input). One artifact, both consumers.
+  from `read_baseline` for string input). One artifact, both consumers — and
+  `/covenant/refresh` re-reads it from disk before diffing, so an updated
+  ConfigMap (or re-snapshotted lock) takes effect without a proxy restart and
+  the operator and proxy cannot split-brain on which baseline is current.
 - **Probes run when the baseline has them.** Probe records carry tool + args,
   so the operator re-runs and diffs them with the Layer 3 pipeline — no extra
   CR config.

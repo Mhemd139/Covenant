@@ -3,19 +3,20 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ .Release.Name }}-proxy
-  labels: { app: covenant-proxy }
+  labels: { app: covenant-proxy, release: {{ .Release.Name }} }
 spec:
   replicas: 1
   selector:
-    matchLabels: { app: covenant-proxy }
+    matchLabels: { app: covenant-proxy, release: {{ .Release.Name }} }
   template:
     metadata:
-      labels: { app: covenant-proxy }
+      labels: { app: covenant-proxy, release: {{ .Release.Name }} }
     spec:
       containers:
         - name: proxy
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: [covenant]
           args:
             - proxy
             - --upstream={{ required "proxy.upstream is required" .Values.proxy.upstream }}
@@ -38,7 +39,7 @@ kind: Service
 metadata:
   name: {{ .Release.Name }}-proxy
 spec:
-  selector: { app: covenant-proxy }
+  selector: { app: covenant-proxy, release: {{ .Release.Name }} }
   ports:
     - port: {{ .Values.proxy.port }}
       targetPort: {{ .Values.proxy.port }}

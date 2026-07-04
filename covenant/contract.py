@@ -95,14 +95,14 @@ def read_baseline(path: str | Path) -> tuple[str, list[JsonDict], list[JsonDict]
     return parse_baseline(p.read_text(encoding="utf-8"), source=str(p))
 
 
-def parse_baseline(
-    text: str, source: str = "baseline"
-) -> tuple[str, list[JsonDict], list[JsonDict]]:
+def parse_baseline(text: str, source: str) -> tuple[str, list[JsonDict], list[JsonDict]]:
     """Parse baseline JSON text (a file or a ConfigMap value) into wire-shape parts."""
     try:
         data = json.loads(text)
     except json.JSONDecodeError as e:
         raise BaselineError(f"baseline is not valid JSON: {source} ({e})") from e
+    if not isinstance(data, dict):
+        raise BaselineError(f"baseline is not a JSON object: {source}")
 
     tools = [
         {

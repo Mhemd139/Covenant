@@ -17,6 +17,7 @@ from ..contract import parse_baseline
 from ..diff import diff_probes, diff_tools
 from ..errors import CovenantError
 from ..introspect import introspect, run_probes
+from ..report import summarize
 
 DEFAULT_INTERVAL_S = 300
 
@@ -29,12 +30,21 @@ def due(last_check_iso: str | None, interval_s: int, now: datetime) -> bool:
         last = datetime.fromisoformat(last_check_iso)
     except ValueError:
         return True  # unreadable timestamp: re-check rather than stall forever
+    if last.tzinfo is None:
+        return True  # naive timestamp (not ours): unusable against an aware now
     return (now - last).total_seconds() >= interval_s
+
+
+def error_status(now: datetime, message: str) -> JsonDict:
+    """Status patch for a failed check. Counts are zeroed explicitly: kopf applies
+    status as a JSON merge patch, so omitting them would leave a previous check's
+    counts on display next to ``result: error``."""
+    return {"lastCheckTime": now.isoformat(), "result": "error", "message": message,
+            "breaking": 0, "degraded": 0, "compatible": 0}
 
 
 def check_contract(server_url: str, baseline_text: str, now: datetime) -> JsonDict:
     """Run one contract check; always return a status patch, never raise."""
-    status: JsonDict = {"lastCheckTime": now.isoformat()}
     try:
         _, base_tools, base_probes = parse_baseline(baseline_text, source="configmap")
         cfg = Config(server_command=None, server_url=server_url, baseline_path="")
@@ -43,21 +53,12 @@ def check_contract(server_url: str, baseline_text: str, now: datetime) -> JsonDi
             probes = [Probe(tool=p["tool"], args=p.get("args") or {}) for p in base_probes]
             changes += diff_probes(base_probes, run_probes(cfg, probes))
     except CovenantError as e:
-        status.update({"result": "error", "message": str(e)})
-        return status
+        return error_status(now, str(e))
+    except Exception as e:  # noqa: BLE001 - a malformed baseline must not crash-loop the operator
+        return error_status(now, f"{type(e).__name__}: {e}")
 
-    counts = {"breaking": 0, "degraded": 0, "compatible": 0}
-    for c in changes:
-        counts[c.tier] = counts.get(c.tier, 0) + 1
-    if counts["breaking"]:
-        result = "breaking"
-    elif counts["degraded"]:
-        result = "degraded"
-    else:
-        result = "clean"
-    status.update({
-        "result": result,
-        **counts,
+    result, counts = summarize(changes)
+    return {
+        "lastCheckTime": now.isoformat(), "result": result, **counts,
         "message": "; ".join(c.message for c in changes[:5]) or "contract matches the baseline",
-    })
-    return status
+    }

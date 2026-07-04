@@ -36,14 +36,14 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ .Release.Name }}-operator
-  labels: { app: covenant-operator }
+  labels: { app: covenant-operator, release: {{ .Release.Name }} }
 spec:
   replicas: 1
   selector:
-    matchLabels: { app: covenant-operator }
+    matchLabels: { app: covenant-operator, release: {{ .Release.Name }} }
   template:
     metadata:
-      labels: { app: covenant-operator }
+      labels: { app: covenant-operator, release: {{ .Release.Name }} }
     spec:
       serviceAccountName: {{ .Release.Name }}-operator
       containers:
