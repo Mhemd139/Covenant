@@ -28,12 +28,8 @@ def summarize(changes: list[Change]) -> tuple[str, dict[str, int]]:
 
 
 def exit_code(changes: list[Change], strict: bool) -> int:
-    tiers = {c.tier for c in changes}
-    if "breaking" in tiers:
-        return 1
-    if strict and "degraded" in tiers:
-        return 1
-    return 0
+    result, _ = summarize(changes)
+    return 1 if result == "breaking" or (strict and result == "degraded") else 0
 
 
 def to_json(changes: list[Change]) -> str:

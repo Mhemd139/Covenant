@@ -28,8 +28,10 @@ from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
 
 from .._types import JsonDict
+from ..config import Config
 from ..contract import read_baseline
 from ..errors import CovenantError
+from ..introspect import introspect_async
 from ..store.base import Store
 from ..store.memory import InMemoryStore
 from .detect import detect
@@ -84,24 +86,8 @@ async def _list_upstream(app: FastAPI) -> list[JsonDict]:
     lister: Lister | None = app.state.lister
     if lister is not None:
         return await lister()
-    from mcp import ClientSession
-    from mcp.client.streamable_http import streamablehttp_client
-
-    async with (
-        streamablehttp_client(app.state.upstream) as (read, write, _),
-        ClientSession(read, write) as session,
-    ):
-        await session.initialize()
-        result = await session.list_tools()
-        return [
-            {
-                "name": t.name,
-                "description": t.description,
-                "inputSchema": t.inputSchema,
-                "outputSchema": getattr(t, "outputSchema", None),
-            }
-            for t in result.tools
-        ]
+    cfg = Config(server_command=None, server_url=app.state.upstream, baseline_path="")
+    return await introspect_async(cfg)
 
 
 def _label(app: FastAPI, tool: str) -> str:
@@ -122,15 +108,12 @@ async def _proxy(app: FastAPI, request: Request) -> Response:
     metrics: Metrics = app.state.metrics
     body = await request.body()
 
-    rpc = None
+    parsed: object = None
     if body:
-        try:
-            rpc = json.loads(body)
-        except json.JSONDecodeError:
-            rpc = None
-    method = rpc.get("method") if isinstance(rpc, dict) else None
-    rpc_id = rpc.get("id") if isinstance(rpc, dict) else None
-    params = rpc.get("params") if isinstance(rpc, dict) else None
+        with contextlib.suppress(json.JSONDecodeError):
+            parsed = json.loads(body)
+    rpc: JsonDict = parsed if isinstance(parsed, dict) else {}
+    method, rpc_id, params = rpc.get("method"), rpc.get("id"), rpc.get("params")
     tool = params.get("name") if isinstance(params, dict) else None
 
     # Quarantine enforcement: block a call to a flagged tool, never forward it.

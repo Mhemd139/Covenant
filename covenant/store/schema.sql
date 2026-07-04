@@ -2,7 +2,7 @@
 
 CREATE TABLE IF NOT EXISTS tool_status (
     tool   TEXT PRIMARY KEY,
-    status TEXT NOT NULL,              -- 'ok' | 'quarantined'
+    status TEXT NOT NULL,              -- 'quarantined' (the only status Covenant writes)
     reason TEXT,
     since  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
