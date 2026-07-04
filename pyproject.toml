@@ -66,6 +66,19 @@ dev = [
 [tool.hatch.build.targets.wheel]
 packages = ["covenant"]
 
+# Allowlist, not blocklist: hatchling's default sdist packs everything that isn't
+# gitignored, including untracked local files.
+[tool.hatch.build.targets.sdist]
+only-include = [
+    "covenant",
+    "tests",
+    "examples",
+    "covenant.toml",
+    "covenant.lock.json",
+    "README.md",
+    "LICENSE",
+]
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"
