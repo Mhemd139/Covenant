@@ -90,12 +90,22 @@ def write_baseline(
 def read_baseline(path: str | Path) -> tuple[str, list[JsonDict], list[JsonDict]]:
     """Read a baseline file; return (server, wire-shape tool dicts, probe records)."""
     p = Path(path)
-    if not p.exists():
-        raise BaselineError(f"baseline not found: {p} (run `covenant snapshot` first)")
     try:
-        data = json.loads(p.read_text(encoding="utf-8"))
+        text = p.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as e:
+        raise BaselineError(
+            f"cannot read baseline: {p} ({e}) - run `covenant snapshot` first") from e
+    return parse_baseline(text, source=str(p))
+
+
+def parse_baseline(text: str, source: str) -> tuple[str, list[JsonDict], list[JsonDict]]:
+    """Parse baseline JSON text (a file or a ConfigMap value) into wire-shape parts."""
+    try:
+        data = json.loads(text)
     except json.JSONDecodeError as e:
-        raise BaselineError(f"baseline is not valid JSON: {p} ({e})") from e
+        raise BaselineError(f"baseline is not valid JSON: {source} ({e})") from e
+    if not isinstance(data, dict):
+        raise BaselineError(f"baseline is not a JSON object: {source}")
 
     tools = [
         {

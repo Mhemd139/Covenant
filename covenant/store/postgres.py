@@ -38,15 +38,6 @@ class PostgresStore:
             await self._pool.close()
             self._pool = None
 
-    async def set_status(self, tool: str, status: str, reason: str | None) -> None:
-        async with self._p.acquire() as c:
-            await c.execute(
-                """INSERT INTO tool_status (tool, status, reason, since)
-                   VALUES ($1, $2, $3, now())
-                   ON CONFLICT (tool) DO UPDATE SET status = $2, reason = $3, since = now()""",
-                tool, status, reason,
-            )
-
     async def sync_quarantine(self, breaking: dict[str, str]) -> None:
         async with self._p.acquire() as c, c.transaction():
             await c.execute("DELETE FROM tool_status WHERE status = 'quarantined'")

@@ -28,6 +28,10 @@ from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
 
 from .._types import JsonDict
+from ..config import Config
+from ..contract import read_baseline
+from ..errors import CovenantError
+from ..introspect import introspect_async
 from ..store.base import Store
 from ..store.memory import InMemoryStore
 from .detect import detect
@@ -82,24 +86,13 @@ async def _list_upstream(app: FastAPI) -> list[JsonDict]:
     lister: Lister | None = app.state.lister
     if lister is not None:
         return await lister()
-    from mcp import ClientSession
-    from mcp.client.streamable_http import streamablehttp_client
+    cfg = Config(server_command=None, server_url=app.state.upstream, baseline_path="")
+    return await introspect_async(cfg)
 
-    async with (
-        streamablehttp_client(app.state.upstream) as (read, write, _),
-        ClientSession(read, write) as session,
-    ):
-        await session.initialize()
-        result = await session.list_tools()
-        return [
-            {
-                "name": t.name,
-                "description": t.description,
-                "inputSchema": t.inputSchema,
-                "outputSchema": getattr(t, "outputSchema", None),
-            }
-            for t in result.tools
-        ]
+
+def _label(app: FastAPI, tool: str) -> str:
+    """Metric label for a tool name, clamped to the baseline set (cardinality guard)."""
+    return tool if tool in app.state.baseline_names else "unknown"
 
 
 def _is_error(resp_json: object) -> bool:
@@ -115,15 +108,12 @@ async def _proxy(app: FastAPI, request: Request) -> Response:
     metrics: Metrics = app.state.metrics
     body = await request.body()
 
-    rpc = None
+    parsed: object = None
     if body:
-        try:
-            rpc = json.loads(body)
-        except json.JSONDecodeError:
-            rpc = None
-    method = rpc.get("method") if isinstance(rpc, dict) else None
-    rpc_id = rpc.get("id") if isinstance(rpc, dict) else None
-    params = rpc.get("params") if isinstance(rpc, dict) else None
+        with contextlib.suppress(json.JSONDecodeError):
+            parsed = json.loads(body)
+    rpc: JsonDict = parsed if isinstance(parsed, dict) else {}
+    method, rpc_id, params = rpc.get("method"), rpc.get("id"), rpc.get("params")
     tool = params.get("name") if isinstance(params, dict) else None
 
     # Quarantine enforcement: block a call to a flagged tool, never forward it.
@@ -133,7 +123,7 @@ async def _proxy(app: FastAPI, request: Request) -> Response:
             f"tool unavailable - '{tool}' quarantined by Covenant "
             f"(contract drift: {q.reason(tool)})",
         )
-        metrics.record_call(tool, "blocked")
+        metrics.record_call(_label(app, tool), "blocked")
         await _safe(store.record_call(tool, method, 0, True, True))
         return Response(content=json.dumps(blocked), media_type="application/json")
 
@@ -176,7 +166,7 @@ async def _proxy(app: FastAPI, request: Request) -> Response:
 
     if method == "tools/call" and isinstance(tool, str):
         is_err = _is_error(resp_json)
-        metrics.record_call(tool, "error" if is_err else "ok", latency_ms / 1000)
+        metrics.record_call(_label(app, tool), "error" if is_err else "ok", latency_ms / 1000)
         await _safe(store.record_call(tool, method, latency_ms, is_err, False))
 
     return Response(
@@ -193,6 +183,7 @@ def create_app(
     http_client: httpx.AsyncClient | None = None,
     lister: Lister | None = None,
     store: Store | None = None,
+    baseline_path: str | None = None,
 ) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -214,6 +205,10 @@ def create_app(
     app.state.lister = lister
     app.state.store = store or InMemoryStore()
     app.state.metrics = Metrics()
+    # Clamp the metric label to known tools: a client-supplied name must not be able
+    # to mint unbounded Prometheus timeseries (label-cardinality DoS).
+    app.state.baseline_names = {t["name"] for t in baseline_tools}
+    app.state.baseline_path = baseline_path
 
     @app.get("/covenant/status")
     async def status() -> JsonDict:
@@ -225,6 +220,16 @@ def create_app(
 
     @app.post("/covenant/refresh")
     async def refresh() -> JsonDict:
+        # Re-read the baseline first: a re-snapshotted lock (or an updated ConfigMap
+        # mount) must not be diffed against the copy parsed at startup, or an
+        # intentional contract update reads as drift and quarantines a healthy tool.
+        if app.state.baseline_path:
+            try:
+                _, base_tools, _ = read_baseline(app.state.baseline_path)
+            except CovenantError as e:
+                raise HTTPException(status_code=500, detail=f"baseline reload failed: {e}") from e
+            app.state.baseline = base_tools
+            app.state.baseline_names = {t["name"] for t in base_tools}
         try:
             tools = await asyncio.wait_for(_list_upstream(app), timeout=_UPSTREAM_LIST_TIMEOUT)
         except TimeoutError as e:

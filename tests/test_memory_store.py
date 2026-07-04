@@ -9,16 +9,15 @@ def run(coro):
     return asyncio.run(coro)
 
 
-def test_set_status_and_load_only_quarantined():
+def test_sync_quarantine_then_load():
     s = InMemoryStore()
-    run(s.set_status("get_account", "quarantined", "output field 'balance_usd' removed"))
-    run(s.set_status("ping", "ok", None))
+    run(s.sync_quarantine({"get_account": "output field 'balance_usd' removed"}))
     assert run(s.load_quarantine()) == {"get_account": "output field 'balance_usd' removed"}
 
 
 def test_sync_quarantine_replaces_the_set():
     s = InMemoryStore()
-    run(s.set_status("a", "quarantined", "x"))
+    run(s.sync_quarantine({"a": "x"}))
     run(s.sync_quarantine({"b": "y"}))
     assert run(s.load_quarantine()) == {"b": "y"}
 

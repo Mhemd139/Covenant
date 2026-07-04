@@ -1,0 +1,18 @@
+# Example MCPContract: the operator checks this server every 60s against the
+# baseline in the covenant-baseline ConfigMap, writes the verdict into status
+# (kubectl get mcpc), and nudges the proxy to quarantine on drift.
+#
+#   kubectl create configmap covenant-baseline --from-file=covenant.lock.json
+#   kubectl apply -f examples/mcpcontract.yaml
+#   kubectl get mcpcontracts -w
+apiVersion: covenant.dev/v1alpha1
+kind: MCPContract
+metadata:
+  name: example-server
+spec:
+  server: http://example-mcp:8000/mcp
+  baselineConfigMap:
+    name: covenant-baseline
+    key: covenant.lock.json
+  intervalSeconds: 60
+  proxyRefreshUrl: http://covenant-proxy:9000/covenant/refresh
