@@ -28,23 +28,11 @@ pip install -e ".[dev]"
 The repo ships a real example server with a committed baseline. Check it, then break it for real — `COVENANT_DRIFT=1` renames a live tool's output field:
 
 ```bash
-$ covenant check
-OK no drift - contract matches the baseline.
-
-$ COVENANT_DRIFT=1 covenant check
-                                  Covenant - contract drift
-+--------------------------------------------------------------------------------------------+
-| tier       | location | change                                                             |
-|------------+----------+--------------------------------------------------------------------|
-| BREAKING   | behavior | probe get_account: output field 'balance_usd' removed              |
-| BREAKING   | output   | output field 'balance_usd' removed                                 |
-| COMPATIBLE | behavior | probe get_account: output optional field 'available_balance' added |
-| COMPATIBLE | output   | output required field 'available_balance' added                    |
-+--------------------------------------------------------------------------------------------+
-x 2 breaking change(s) - downstream agents would fail silently. Fix or quarantine.
-$ echo $?
-1
+covenant check                    # OK no drift - exit 0
+COVENANT_DRIFT=1 covenant check   # catches the lie - exit 1
 ```
+
+![covenant check catching a breaking change](docs/assets/drift-check.svg)
 
 The lie is caught twice: in the declared schema (`output` rows) and in the actual response body (`behavior` rows), because the committed config probes the tool.
 
@@ -100,6 +88,8 @@ pip install -e ".[judge]"
 covenant check --judge    # [judge] model in covenant.toml: claude-* / gemini-*
 ```
 
+![the LLM judge catching a semantic rescale no schema diff can see](docs/assets/judge-verdict.png)
+
 Judge verdicts are **advisory by design** — DEGRADED, never BREAKING: a probabilistic detector must not trigger quarantine. Details: [Layer 3 design spec](docs/specs/2026-07-03-covenant-layer3-behavioral-probes-design.md).
 
 ## Runtime guard: the proxy
@@ -121,7 +111,9 @@ covenant proxy --upstream http://localhost:8000/mcp --port 9000
 
 Detection is proxy-owned: `refresh` re-lists the upstream itself, so enforcement never depends on the client's `tools/list` timing. Optional Postgres persistence keeps quarantine across restarts (`--database-url`, `[store]` extra); store writes are best-effort and never fail the request path.
 
-`docker compose up -d` also brings up Prometheus + a provisioned Grafana dashboard at `http://localhost:3000` — the quarantine stat flips green→red within one scrape of a drift.
+`docker compose up -d` also brings up Prometheus + a provisioned Grafana dashboard at `http://localhost:3000` — the quarantine stat flips green→red within one scrape of a drift:
+
+![Grafana dashboard: blocked calls and a quarantined tool after a live drift](docs/assets/grafana-quarantine.png)
 
 ## Kubernetes: the `MCPContract` operator
 
