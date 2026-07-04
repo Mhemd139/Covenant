@@ -50,18 +50,17 @@ judge = [
     "anthropic>=0.40",
     "google-genai>=1.0",
 ]
+operator = [
+    "kopf>=1.37",
+    "kubernetes>=29",
+    "httpx>=0.27",
+]
 dev = [
+    "covenant-mcp[proxy,store,judge,operator]",  # one source of truth for the extras' pins
     "pytest>=8",
     "anyio>=4",
     "ruff>=0.6",
     "mypy>=1.11",
-    "fastapi>=0.115",
-    "uvicorn>=0.30",
-    "httpx>=0.27",
-    "prometheus-client>=0.20",
-    "asyncpg>=0.29",
-    "anthropic>=0.40",
-    "google-genai>=1.0",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -80,9 +79,9 @@ strict = true
 warn_unused_ignores = true
 disallow_untyped_defs = true
 
-# asyncpg ships no py.typed marker; ignore its missing stubs (not our code).
+# asyncpg/kubernetes ship no py.typed marker; ignore their missing stubs (not our code).
 [[tool.mypy.overrides]]
-module = "asyncpg.*"
+module = ["asyncpg.*", "kubernetes.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

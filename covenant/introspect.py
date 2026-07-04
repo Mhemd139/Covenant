@@ -82,7 +82,8 @@ def _resolve_result(result: Any) -> tuple[object, bool, str | None]:
     return None, False, None
 
 
-async def _introspect(config: Config) -> list[JsonDict]:
+async def introspect_async(config: Config) -> list[JsonDict]:
+    """List the server's tools in MCP wire shape (async; the proxy reuses this)."""
     async with _session(config) as session:
         result = await session.list_tools()
         return [_tool_to_dict(t) for t in result.tools]
@@ -110,7 +111,7 @@ async def _run_probes(config: Config, probes: list[Probe]) -> list[JsonDict]:
 def introspect(config: Config) -> list[JsonDict]:
     """Introspect the configured server; return wire-shape tool dicts."""
     try:
-        return asyncio.run(_introspect(config))
+        return asyncio.run(introspect_async(config))
     except CovenantError:
         raise
     except Exception as e:  # noqa: BLE001 - surface any transport failure as one clean error

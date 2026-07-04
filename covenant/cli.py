@@ -174,7 +174,7 @@ def proxy(
         err.print(f"[red]error:[/red] {e}")
         raise typer.Exit(2) from e
 
-    fastapi_app = create_app(upstream, base_tools, store=store)
+    fastapi_app = create_app(upstream, base_tools, store=store, baseline_path=baseline)
     persistence = "postgres" if store else "in-memory (no persistence)"
     console.print(f"[green]Covenant proxy[/green] guarding [cyan]{upstream}[/cyan] "
                   f"at [cyan]http://{host}:{port}/mcp[/cyan]")

@@ -4,6 +4,8 @@ No real MCP server here — httpx.MockTransport stands in for the upstream so we
 assert forwarding, quarantine short-circuiting, refresh, and status precisely.
 """
 
+import json
+
 import httpx
 from fastapi.testclient import TestClient
 
@@ -108,4 +110,30 @@ def test_refresh_releases_a_restored_tool():
     client = TestClient(app)
 
     assert client.post("/covenant/refresh").json()["quarantined"]
+    assert client.post("/covenant/refresh").json()["quarantined"] == {}
+
+
+def lock_text(props):
+    return json.dumps({
+        "covenant_version": "0.1.0", "server": "http://up/mcp",
+        "tools": {"get_account": {"description": "d", "inputSchema": None,
+                                  "outputSchema": obj(props), "schema_hash": "sha256:x"}},
+    })
+
+
+def test_refresh_reloads_baseline_from_disk(tmp_path):
+    # An intentional contract update: server changes AND the lock is re-snapshotted.
+    # Refresh must diff against the lock on disk, not the copy parsed at startup —
+    # otherwise the updated tool reads as drift and a healthy tool is quarantined.
+    lock = tmp_path / "covenant.lock.json"
+    lock.write_text(lock_text({"balance_usd": {"type": "number"}}), encoding="utf-8")
+
+    async def lister():
+        return [tool("get_account", out=obj({"balance_cents": {"type": "integer"}}))]
+
+    app = create_app("http://up/mcp", BASE, lister=lister, baseline_path=str(lock),
+                     http_client=mock_client(lambda req: httpx.Response(200)))
+    client = TestClient(app)
+
+    lock.write_text(lock_text({"balance_cents": {"type": "integer"}}), encoding="utf-8")
     assert client.post("/covenant/refresh").json()["quarantined"] == {}
