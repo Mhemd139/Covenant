@@ -14,8 +14,8 @@
 
 ## Where this sits
 
-Covenant is being built as the full contract-and-drift firewall described in
-[Project.md](../../../Project.md), decomposed into six dependency-ordered layers:
+Covenant is being built as a full contract-and-drift firewall for MCP servers,
+decomposed into six dependency-ordered layers:
 
 | # | Layer | Adds |
 |---|---|---|
@@ -39,7 +39,7 @@ A pure, offline library + CLI that:
    three-tier severity model, and exits non-zero in CI when the contract breaks.
 
 No server, no database, no LLM, no network beyond the single introspection
-connection. This is the honest schema-half of Project.md's drift detector.
+connection. This is the honest schema-half of the drift detector.
 
 ## The effectiveness model (why the classifier is shaped this way)
 
