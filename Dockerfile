@@ -8,4 +8,7 @@ COPY pyproject.toml README.md ./
 COPY covenant ./covenant
 RUN pip install --no-cache-dir ".[proxy,operator]"
 
+RUN useradd --create-home --uid 1000 covenant
+USER covenant
+
 CMD ["covenant", "--help"]
