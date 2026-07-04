@@ -18,6 +18,15 @@ _TIER_STYLE = {"breaking": "bold red", "degraded": "yellow", "compatible": "gree
 _TIER_ORDER = {"breaking": 0, "degraded": 1, "compatible": 2}
 
 
+def summarize(changes: list[Change]) -> tuple[str, dict[str, int]]:
+    """Worst tier ('clean' when none) plus per-tier counts — the one severity ladder."""
+    counts = {"breaking": 0, "degraded": 0, "compatible": 0}
+    for c in changes:
+        counts[c.tier] += 1
+    result = "breaking" if counts["breaking"] else "degraded" if counts["degraded"] else "clean"
+    return result, counts
+
+
 def exit_code(changes: list[Change], strict: bool) -> int:
     tiers = {c.tier for c in changes}
     if "breaking" in tiers:
@@ -51,8 +60,8 @@ def render(changes: list[Change], strict: bool, console: Console | None = None) 
 
     console.print(table)
 
-    breaking = sum(c.tier == "breaking" for c in changes)
-    degraded = sum(c.tier == "degraded" for c in changes)
+    _, counts = summarize(changes)
+    breaking, degraded = counts["breaking"], counts["degraded"]
     if breaking:
         console.print(f"[bold red]x {breaking} breaking change(s)[/bold red] - "
                       "downstream agents would fail silently. Fix or quarantine.")

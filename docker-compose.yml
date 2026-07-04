@@ -13,7 +13,7 @@ services:
       POSTGRES_PASSWORD: covenant
       POSTGRES_DB: covenant
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"  # loopback only - static credentials must not face the LAN
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:

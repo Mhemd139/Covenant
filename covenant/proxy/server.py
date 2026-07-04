@@ -28,6 +28,8 @@ from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
 
 from .._types import JsonDict
+from ..contract import read_baseline
+from ..errors import CovenantError
 from ..store.base import Store
 from ..store.memory import InMemoryStore
 from .detect import detect
@@ -198,6 +200,7 @@ def create_app(
     http_client: httpx.AsyncClient | None = None,
     lister: Lister | None = None,
     store: Store | None = None,
+    baseline_path: str | None = None,
 ) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -222,6 +225,7 @@ def create_app(
     # Clamp the metric label to known tools: a client-supplied name must not be able
     # to mint unbounded Prometheus timeseries (label-cardinality DoS).
     app.state.baseline_names = {t["name"] for t in baseline_tools}
+    app.state.baseline_path = baseline_path
 
     @app.get("/covenant/status")
     async def status() -> JsonDict:
@@ -233,6 +237,16 @@ def create_app(
 
     @app.post("/covenant/refresh")
     async def refresh() -> JsonDict:
+        # Re-read the baseline first: a re-snapshotted lock (or an updated ConfigMap
+        # mount) must not be diffed against the copy parsed at startup, or an
+        # intentional contract update reads as drift and quarantines a healthy tool.
+        if app.state.baseline_path:
+            try:
+                _, base_tools, _ = read_baseline(app.state.baseline_path)
+            except CovenantError as e:
+                raise HTTPException(status_code=500, detail=f"baseline reload failed: {e}") from e
+            app.state.baseline = base_tools
+            app.state.baseline_names = {t["name"] for t in base_tools}
         try:
             tools = await asyncio.wait_for(_list_upstream(app), timeout=_UPSTREAM_LIST_TIMEOUT)
         except TimeoutError as e:

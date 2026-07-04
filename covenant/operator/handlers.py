@@ -1,8 +1,8 @@
 """kopf glue for the MCPContract operator: ``kopf run -m covenant.operator.handlers``.
 
 A timer fires every POLL_S per resource; ``reconcile.due`` gates it to the CR's own
-``spec.intervalSeconds`` so each contract keeps its own schedule. All failure modes
-land in ``status.result`` — the operator never crash-loops on one bad contract.
+``spec.intervalSeconds`` so each contract keeps its own schedule. Every failure mode
+lands in ``status.result`` — the operator never crash-loops on one bad contract.
 """
 
 from __future__ import annotations
@@ -16,6 +16,8 @@ import kopf
 from kubernetes import client as k8s
 from kubernetes import config as k8s_config
 
+from ..config import DEFAULT_BASELINE
+from ..errors import CovenantError
 from . import reconcile
 
 log = logging.getLogger("covenant.operator")
@@ -23,10 +25,15 @@ log = logging.getLogger("covenant.operator")
 GROUP, VERSION, PLURAL = "covenant.dev", "v1alpha1", "mcpcontracts"
 POLL_S = 30
 _REFRESH_TIMEOUT_S = 10.0
+# Sync handlers share one thread pool; a check blocks its slot for up to the MCP
+# transport timeout, so the default pool (cpus+4) would let a few hung servers
+# starve every other CR's timer. Sized for hundreds of CRs; tunable.
+_MAX_WORKERS = 32
 
 
 @kopf.on.startup()
-def configure(**_: Any) -> None:
+def configure(settings: kopf.OperatorSettings, **_: Any) -> None:
+    settings.execution.max_workers = _MAX_WORKERS
     try:
         k8s_config.load_incluster_config()
     except k8s_config.ConfigException:
@@ -36,10 +43,10 @@ def configure(**_: Any) -> None:
 def _baseline_text(spec: kopf.Spec, namespace: str) -> str:
     ref = spec["baselineConfigMap"]
     cm = k8s.CoreV1Api().read_namespaced_config_map(ref["name"], namespace)
-    key = ref.get("key", "covenant.lock.json")
+    key = ref.get("key", DEFAULT_BASELINE)
     text = (cm.data or {}).get(key)
     if text is None:
-        raise kopf.PermanentError(f"configmap {ref['name']} has no key {key!r}")
+        raise CovenantError(f"configmap {ref['name']} has no key {key!r}")
     return str(text)
 
 
@@ -54,13 +61,9 @@ def check(*, spec: kopf.Spec, status: kopf.Status, namespace: str | None,
     try:
         # MCPContract is namespaced; kopf types namespace optional for cluster scope.
         baseline = _baseline_text(spec, namespace or "default")
-    except kopf.PermanentError:
-        raise  # a misconfigured CR should surface as a kopf failure, not be retried
-    except Exception as e:  # noqa: BLE001 - configmap read failure goes into status
-        patch.status.update({
-            "lastCheckTime": now.isoformat(), "result": "error",
-            "message": f"could not read baseline configmap: {e}",
-        })
+    except Exception as e:  # noqa: BLE001 - a misconfigured CR is status, not a crash-loop
+        patch.status.update(
+            reconcile.error_status(now, f"could not read baseline configmap: {e}"))
         return
 
     result = reconcile.check_contract(str(spec["server"]), baseline, now)
