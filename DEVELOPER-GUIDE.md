@@ -195,8 +195,11 @@ CI runs the drift injections against the repo's own example server on every push
   CRD + namespace list rights at startup, and the MCP SDK's DNS-rebinding guard
   421s `host.docker.internal` unless the demo server allowlists it
   (`COVENANT_ALLOWED_HOSTS`).
-- Still not live-exercised: the Grafana dashboard (provisioned, metric names match,
-  but nobody has watched the green→red flip on a running stack).
+- **Observability verified live** (compose stack): Prometheus scrapes the proxy's
+  `/covenant/metrics` (target `up`), and the full quarantine flip was watched through
+  the pipeline — `covenant_quarantined_tools` 0 → 1 on injected drift → 0 on restore,
+  queried both directly in Prometheus and through Grafana's provisioned datasource.
+  Every layer has now been exercised against real infrastructure.
 
 ## Honest limitations (know these before someone finds them)
 
