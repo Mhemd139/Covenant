@@ -19,16 +19,23 @@ same schema, same shape, changed meaning (only the LLM judge sees it).
 import os
 
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 from pydantic import BaseModel
 
 # json_response + stateless keep HTTP responses as single JSON bodies (no SSE), so
 # the proxy path is deterministic; these are ignored under stdio (Layer 0).
+# COVENANT_ALLOWED_HOSTS extends the SDK's DNS-rebinding allowlist beyond localhost —
+# needed when a cluster reaches this server via host.docker.internal (K8s demo).
+_extra_hosts = [h for h in os.environ.get("COVENANT_ALLOWED_HOSTS", "").split(",") if h]
 mcp = FastMCP(
     "covenant-example-bank",
     host="127.0.0.1",
     port=int(os.environ.get("PORT", "8000")),
     json_response=True,
     stateless_http=True,
+    transport_security=TransportSecuritySettings(
+        allowed_hosts=["127.0.0.1:*", "localhost:*", *_extra_hosts],
+    ) if _extra_hosts else None,
 )
 
 DRIFT = os.environ.get("COVENANT_DRIFT") == "1"

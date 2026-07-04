@@ -184,7 +184,7 @@ Design specs for the shipped layers live in [docs/superpowers/specs](docs/superp
 
 ```bash
 pip install -e ".[dev]"
-pytest                      # 112 tests; Postgres-backed tests skip without a DB
+pytest                      # 132 tests; Postgres-backed tests skip without a DB
 ruff check . && mypy covenant
 ```
 
