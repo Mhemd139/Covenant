@@ -33,9 +33,10 @@ mcp = FastMCP(
     port=int(os.environ.get("PORT", "8000")),
     json_response=True,
     stateless_http=True,
+    # always explicit: mcp 1.10.0 left protection OFF when settings were None
     transport_security=TransportSecuritySettings(
         allowed_hosts=["127.0.0.1:*", "localhost:*", *_extra_hosts],
-    ) if _extra_hosts else None,
+    ),
 )
 
 DRIFT = os.environ.get("COVENANT_DRIFT") == "1"

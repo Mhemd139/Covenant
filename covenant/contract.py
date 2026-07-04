@@ -90,9 +90,12 @@ def write_baseline(
 def read_baseline(path: str | Path) -> tuple[str, list[JsonDict], list[JsonDict]]:
     """Read a baseline file; return (server, wire-shape tool dicts, probe records)."""
     p = Path(path)
-    if not p.exists():
-        raise BaselineError(f"baseline not found: {p} (run `covenant snapshot` first)")
-    return parse_baseline(p.read_text(encoding="utf-8"), source=str(p))
+    try:
+        text = p.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as e:
+        raise BaselineError(
+            f"cannot read baseline: {p} ({e}) - run `covenant snapshot` first") from e
+    return parse_baseline(text, source=str(p))
 
 
 def parse_baseline(text: str, source: str) -> tuple[str, list[JsonDict], list[JsonDict]]:

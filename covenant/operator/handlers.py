@@ -61,12 +61,13 @@ def check(*, spec: kopf.Spec, status: kopf.Status, namespace: str | None,
     try:
         # MCPContract is namespaced; kopf types namespace optional for cluster scope.
         baseline = _baseline_text(spec, namespace or "default")
+        server_url = str(spec["server"])  # required by the CRD; guarded anyway
     except Exception as e:  # noqa: BLE001 - a misconfigured CR is status, not a crash-loop
         patch.status.update(
-            reconcile.error_status(now, f"could not read baseline configmap: {e}"))
+            reconcile.error_status(now, f"misconfigured MCPContract: {e}"))
         return
 
-    result = reconcile.check_contract(str(spec["server"]), baseline, now)
+    result = reconcile.check_contract(server_url, baseline, now)
     patch.status.update(result)
 
     # Nudge the proxy to re-check and quarantine; best-effort, like store writes.
