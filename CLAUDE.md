@@ -27,7 +27,7 @@ COVENANT_BEHAVIOR_DRIFT=1 covenant check # body-only drift (schema identical); p
 | 4 observability | `covenant/proxy/metrics.py`, `deploy/` | `prometheus-client` rides the `[proxy]` extra. One `CollectorRegistry` per app, never the global registry (tests create many apps). Metric writes are in-process and non-throwing, never on the store path. Tool labels are clamped to baseline names (cardinality guard). |
 | 5 k8s operator | `covenant/operator/`, `deploy/helm/` | `kopf`/`kubernetes` are the `[operator]` extra. `reconcile.py` is pure (no kopf/k8s imports — tests run cluster-free); `handlers.py` is glue only. A failed check is `status.result: error`, never a crash-loop. |
 
-Design specs (rationale, rule tables, named decisions) live in `docs/superpowers/specs/` — read the relevant spec before changing classifier or proxy behavior.
+Design specs (rationale, rule tables, named decisions) live in `docs/specs/` — read the relevant spec before changing classifier or proxy behavior.
 
 ## Invariants — do not break
 

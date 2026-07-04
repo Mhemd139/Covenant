@@ -1,8 +1,8 @@
-# Covenant — developer's guide
+# Covenant — architecture
 
-This is the owner's map of the codebase: what each part does, why it's built that way,
-how to demo it, and what to say (and not say) when presenting it. The README sells the
-tool to users; this file explains it to *you*.
+The map of the codebase: what each part does, why it's built that way, and how to
+demo it. The [README](../README.md) shows how to use the tool; this file explains
+how it works inside.
 
 ## The one-paragraph version
 
@@ -28,7 +28,7 @@ that re-reads tool definitions every run:
 
 This inverts REST intuition (where a tightened input is the classic break) and it is the
 justification for every row of the rule table in `covenant/diff.py`. The full rationale
-lives in `docs/superpowers/specs/2026-07-01-covenant-layer0-contract-core-design.md`.
+lives in `docs/specs/2026-07-01-covenant-layer0-contract-core-design.md`.
 
 ## Layer map
 
@@ -182,7 +182,7 @@ kubectl get mcpcontracts -w                    # RESULT flips clean -> breaking
 CI runs the drift injections against the repo's own example server on every push
 (`.github/workflows/ci.yml`) — the project eats its own dog food.
 
-## Verification status — be precise about this
+## Verification status
 
 - 129 tests (+3 Postgres-skipped without a DB), `ruff`, strict `mypy` — green locally
   and in CI. Postgres tests run against a real container when `COVENANT_TEST_DB` is set.
@@ -201,12 +201,12 @@ CI runs the drift injections against the repo's own example server on every push
   queried both directly in Prometheus and through Grafana's provisioned datasource.
   Every layer has now been exercised against real infrastructure.
 
-## Honest limitations (know these before someone finds them)
+## Known limitations
 
-- **Probes are hand-committed, not LLM-generated.** The original pitch (Project.md) had a
-  ReAct agent RAG-generating probe suites; what shipped is `[[probes]]` you write
-  yourself. Honest framing: committed probes are deterministic and side-effect-safe by
-  construction; generated probes are the roadmap.
+- **Probes are hand-committed, not LLM-generated.** The original design pitch had an
+  agent generating probe suites; what shipped is `[[probes]]` you write yourself.
+  Committed probes are deterministic and side-effect-safe by construction; generated
+  probes are the roadmap.
 - **The judge is advisory by design** — it cannot quarantine. This is a feature (no
   probabilistic quarantine), but it means semantic drift alone never blocks anything.
 - **Composed schemas (`$ref`/`allOf`/`anyOf`/`oneOf`) are not resolved** — changes there
@@ -215,20 +215,3 @@ CI runs the drift injections against the repo's own example server on every push
   safe". Coverage is exactly your probe list.
 - **No OTel spans** (deferred; Prometheus only). No value-distribution fingerprints —
   shape only, plus the judge at the margins.
-
-## Presenting it — three framings, same system
-
-- **Technical reviewer**: lead with the direction principle and the purity discipline
-  (pure `diff.py`, pure `reconcile.py`, deterministic lock). The claim is a working
-  severity *theory* for MCP drift plus three enforcement surfaces reusing one classifier
-  — not novel algorithms, novel application: OpenAPI-diff/Pact discipline ported to a
-  protocol that has none, with an agent-aware twist (input-loud/output-silent).
-- **Pitch**: "REST got OpenAPI diffing and contract testing a decade ago; MCP — the way
-  every agent gets its tools now — has nothing. Covenant is the contract firewall for
-  MCP: it catches the drift before your agents hallucinate around it, and quarantines the
-  tool so they fail safe." The wow moment is demo #2: schema identical, body changed,
-  caught anyway.
-- **Job-portfolio (platform/reliability roles)**: point at the layer table — reverse
-  proxy (FastAPI/async), Postgres store, Prometheus/Grafana, kopf operator + CRD + Helm
-  with least-privilege RBAC — each an independently shippable increment with its own
-  design spec under `docs/superpowers/specs/`.
