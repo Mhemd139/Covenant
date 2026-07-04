@@ -44,8 +44,11 @@ Deployment with least-privilege RBAC. One Dockerfile serves both roles.
 - **Probes run when the baseline has them.** Probe records carry tool + args,
   so the operator re-runs and diffs them with the Layer 3 pipeline — no extra
   CR config.
-- **RBAC is least-privilege**: mcpcontracts (+status) list/watch/get/patch,
-  configmaps get, events create. Nothing else.
+- **RBAC is least-privilege — at kopf's floor, found on a live cluster**:
+  mcpcontracts (+status) list/watch/get/patch, configmaps get, events create,
+  plus customresourcedefinitions and namespaces list/watch/get — kopf resolves
+  the CRD and (under `--all-namespaces`) lists namespaces at startup, and
+  403s on both before serving a single contract. Nothing else.
 
 ## Demo
 

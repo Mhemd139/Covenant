@@ -184,12 +184,19 @@ CI runs the drift injections against the repo's own example server on every push
 
 ## Verification status — be precise about this
 
-- 125 tests, `ruff`, strict `mypy` — green locally and in CI. Postgres tests run against
-  a real container when `COVENANT_TEST_DB` is set.
-- The operator's *logic* is fully tested cluster-free (that's what the purity split
-  buys). **The Helm chart has not been `helm lint`-ed or applied to a real cluster**, and
-  the Grafana dashboard was provisioned but not live-exercised end-to-end. Say
-  "cluster-verification pending" if asked, not "fully tested".
+- 129 tests (+3 Postgres-skipped without a DB), `ruff`, strict `mypy` — green locally
+  and in CI. Postgres tests run against a real container when `COVENANT_TEST_DB` is set.
+- **Cluster-verified end-to-end** (Docker Desktop Kubernetes): image builds and both
+  container roles run; `helm lint` clean; `helm install` deploys all 7 objects; the
+  operator reconciles a live `MCPContract` through the full lifecycle — clean →
+  breaking (BREAKING=2: schema + probe rows) with the proxy quarantining the exact
+  tool, then back to clean with the quarantine released. The live run surfaced and
+  fixed two integration bugs no unit test could see: kopf needs cluster-scoped
+  CRD + namespace list rights at startup, and the MCP SDK's DNS-rebinding guard
+  421s `host.docker.internal` unless the demo server allowlists it
+  (`COVENANT_ALLOWED_HOSTS`).
+- Still not live-exercised: the Grafana dashboard (provisioned, metric names match,
+  but nobody has watched the green→red flip on a running stack).
 
 ## Honest limitations (know these before someone finds them)
 
