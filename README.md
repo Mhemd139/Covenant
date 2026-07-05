@@ -4,9 +4,9 @@
 
 [![CI](https://github.com/Mhemd139/Covenant/actions/workflows/ci.yml/badge.svg)](https://github.com/Mhemd139/Covenant/actions/workflows/ci.yml)
 ![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](https://github.com/Mhemd139/Covenant/tree/main/LICENSE)
 
-When an MCP server changes a tool — renames an output field, tightens an input schema — nothing throws. The LLM agents depending on that tool keep calling it, read a field that no longer exists, and confidently report a wrong answer. REST solved this with OpenAPI diffing and contract testing; MCP has had nothing equivalent.
+When an MCP server changes a tool — renames an output field, tightens an input schema — nothing throws. The LLM agents depending on that tool keep calling it, read a field that no longer exists, and confidently report a wrong answer. Existing MCP scanners hash tool definitions and tell you *that* something changed; Covenant classifies every change by whether it **breaks the agent** — and enforces the verdict, from CI to runtime.
 
 Covenant makes the tool contract explicit, versioned, and enforced:
 
@@ -32,11 +32,11 @@ covenant check                    # OK no drift - exit 0
 COVENANT_DRIFT=1 covenant check   # catches the lie - exit 1
 ```
 
-![covenant check catching a breaking change](docs/assets/drift-check.svg)
+![covenant check catching a breaking change](https://raw.githubusercontent.com/Mhemd139/Covenant/main/docs/assets/drift-check.svg)
 
 The lie is caught twice: in the declared schema (`output` rows) and in the actual response body (`behavior` rows), because the committed config probes the tool.
 
-Point it at your own server via [covenant.toml](covenant.toml), or inline:
+Point it at your own server via [covenant.toml](https://github.com/Mhemd139/Covenant/blob/main/covenant.toml), or inline:
 
 ```bash
 covenant snapshot --server http://localhost:8000/mcp   # or a stdio launch command
@@ -56,7 +56,7 @@ The consumer of an MCP tool is an LLM agent that re-reads tool definitions on ev
 | Input retyped/narrowed · new required input · scalar output retype · risky enum changes · description changed | DEGRADED |
 | Optional input added · output field added · input enum widened | COMPATIBLE |
 
-Nested schemas are walked recursively (`balance.currency`, `items[].sku`). Composed schemas (`$ref`/`allOf`/`anyOf`/`oneOf`) are never guessed at — a change there flags DEGRADED for manual review. Full rationale: [Layer 0 design spec](docs/specs/2026-07-01-covenant-layer0-contract-core-design.md).
+Nested schemas are walked recursively (`balance.currency`, `items[].sku`). Composed schemas (`$ref`/`allOf`/`anyOf`/`oneOf`) are never guessed at — a change there flags DEGRADED for manual review. Full rationale: [Layer 0 design spec](https://github.com/Mhemd139/Covenant/blob/main/docs/specs/2026-07-01-covenant-layer0-contract-core-design.md).
 
 ## Use it in CI
 
@@ -69,7 +69,7 @@ Commit `covenant.toml` + `covenant.lock.json`, then:
     covenant check --json   # exit 1 on breaking drift, 2 on config/connection error
 ```
 
-This repo runs exactly that against its own example server on every push — including a job that injects the breaking change and asserts Covenant catches it ([ci.yml](.github/workflows/ci.yml)).
+This repo runs exactly that against its own example server on every push — including a job that injects the breaking change and asserts Covenant catches it ([ci.yml](https://github.com/Mhemd139/Covenant/blob/main/.github/workflows/ci.yml)).
 
 ## Behavioral drift: probes + judge
 
@@ -88,9 +88,9 @@ pip install -e ".[judge]"
 covenant check --judge    # [judge] model in covenant.toml: claude-* / gemini-*
 ```
 
-![the LLM judge catching a semantic rescale no schema diff can see](docs/assets/judge-verdict.png)
+![the LLM judge catching a semantic rescale no schema diff can see](https://raw.githubusercontent.com/Mhemd139/Covenant/main/docs/assets/judge-verdict.png)
 
-Judge verdicts are **advisory by design** — DEGRADED, never BREAKING: a probabilistic detector must not trigger quarantine. Details: [Layer 3 design spec](docs/specs/2026-07-03-covenant-layer3-behavioral-probes-design.md).
+Judge verdicts are **advisory by design** — DEGRADED, never BREAKING: a probabilistic detector must not trigger quarantine. Details: [Layer 3 design spec](https://github.com/Mhemd139/Covenant/blob/main/docs/specs/2026-07-03-covenant-layer3-behavioral-probes-design.md).
 
 ## Runtime guard: the proxy
 
@@ -113,7 +113,7 @@ Detection is proxy-owned: `refresh` re-lists the upstream itself, so enforcement
 
 `docker compose up -d` also brings up Prometheus + a provisioned Grafana dashboard at `http://localhost:3000` — the quarantine stat flips green→red within one scrape of a drift:
 
-![Grafana dashboard: blocked calls and a quarantined tool after a live drift](docs/assets/grafana-quarantine.png)
+![Grafana dashboard: blocked calls and a quarantined tool after a live drift](https://raw.githubusercontent.com/Mhemd139/Covenant/main/docs/assets/grafana-quarantine.png)
 
 ## Kubernetes: the `MCPContract` operator
 
@@ -127,7 +127,7 @@ kubectl apply -f examples/mcpcontract.yaml
 kubectl get mcpcontracts -w        # RESULT flips clean -> breaking when the server drifts
 ```
 
-A failed check is `status.result: error`, never a crash-loop. Details: [Layer 5 design spec](docs/specs/2026-07-03-covenant-layer5-k8s-operator-design.md).
+A failed check is `status.result: error`, never a crash-loop. Details: [Layer 5 design spec](https://github.com/Mhemd139/Covenant/blob/main/docs/specs/2026-07-03-covenant-layer5-k8s-operator-design.md).
 
 ## Architecture
 
@@ -142,7 +142,7 @@ Dependency-ordered layers; each ships alone, and every enforcement surface (CI, 
 | 4 | Prometheus metrics + Grafana dashboard | `[proxy]` |
 | 5 | K8s operator + Helm chart | `[operator]` |
 
-The full codebase tour lives in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md); per-layer design specs (rationale, rule tables, named decisions) in [docs/specs](docs/specs).
+The full codebase tour lives in [docs/ARCHITECTURE.md](https://github.com/Mhemd139/Covenant/blob/main/docs/ARCHITECTURE.md); per-layer design specs (rationale, rule tables, named decisions) in [docs/specs](https://github.com/Mhemd139/Covenant/tree/main/docs/specs).
 
 ## Development
 
@@ -156,4 +156,4 @@ Layer boundaries are enforced by imports: the core depends only on `mcp`, `typer
 
 ## License
 
-[MIT](LICENSE)
+[MIT](https://github.com/Mhemd139/Covenant/tree/main/LICENSE)
