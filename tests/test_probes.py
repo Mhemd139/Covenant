@@ -4,7 +4,7 @@ import pytest
 
 from covenant.config import load_config
 from covenant.contract import read_baseline, write_baseline
-from covenant.diff import diff_probes
+from covenant.diff import diff_expect, diff_probes
 from covenant.errors import ConfigError
 from covenant.fingerprint import fingerprint
 
@@ -49,8 +49,30 @@ def test_scalar_retype_is_degraded():
 
 def test_value_change_same_shape_is_clean():
     base = [_probe("t", {"balance": 42.5})]
-    live = [_live("t", {"balance": 4250.0})]  # cents pun: invisible to shape, the judge's job
+    live = [_live("t", {"balance": 4250.0})]  # cents pun: invisible to shape — pin it, or judge it
     assert diff_probes(base, live) == []
+
+
+def test_pin_match_is_clean():
+    # exact equality, but TOML ints must match float responses (1350 == 1350.0)
+    assert diff_expect("t", {"balance": 1350, "currency": "USD"},
+                       {"balance": 1350.0, "currency": "USD", "extra": "x"}) == []
+
+
+def test_pin_value_mismatch_is_breaking():
+    (c,) = diff_expect("t", {"balance": 42.5}, {"balance": 4250.0})
+    assert (c.kind, c.tier, c.location) == ("value_pin_mismatch", "breaking", "behavior")
+    assert "42.5" in c.message and "4250.0" in c.message
+
+
+def test_pin_missing_field_is_breaking():
+    (c,) = diff_expect("t", {"balance": 42.5}, {"amount": 42.5})
+    assert (c.kind, c.tier) == ("value_pin_missing", "breaking")
+
+
+def test_pin_on_non_dict_response_is_breaking():
+    (c,) = diff_expect("t", {"balance": 42.5}, [42.5])
+    assert c.kind == "value_pin_missing"
 
 
 def test_probe_error_is_degraded_and_loud():
@@ -97,5 +119,27 @@ def test_config_parses_probes_and_judge_model(tmp_path):
 def test_config_rejects_probe_without_tool(tmp_path):
     cfg_file = tmp_path / "covenant.toml"
     cfg_file.write_text('[server]\ncommand = "x"\n[[probes]]\nargs = { a = 1 }\n', encoding="utf-8")
+    with pytest.raises(ConfigError):
+        load_config(cfg_file)
+
+
+def test_config_parses_expect_and_defaults_empty(tmp_path):
+    cfg_file = tmp_path / "covenant.toml"
+    cfg_file.write_text(
+        '[server]\ncommand = "x"\n'
+        '[[probes]]\ntool = "t"\nexpect = { balance = 4210.0 }\n'
+        '[[probes]]\ntool = "u"\n',
+        encoding="utf-8",
+    )
+    cfg = load_config(cfg_file)
+    assert cfg.probes[0].expect == {"balance": 4210.0}
+    assert cfg.probes[1].expect == {}  # opt-in: no pins unless the user types them
+
+
+def test_config_rejects_non_table_expect(tmp_path):
+    cfg_file = tmp_path / "covenant.toml"
+    cfg_file.write_text(
+        '[server]\ncommand = "x"\n[[probes]]\ntool = "t"\nexpect = 42\n', encoding="utf-8"
+    )
     with pytest.raises(ConfigError):
         load_config(cfg_file)

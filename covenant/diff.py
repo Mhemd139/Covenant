@@ -265,3 +265,29 @@ def diff_probes(baseline: list[JsonDict], live: list[JsonDict]) -> list[Change]:
             for c in raw
         ]
     return changes
+
+
+def diff_expect(tool: str, expect: JsonDict, response: object) -> list[Change]:
+    """Check declared value pins (``expect`` on a probe) against a live response.
+
+    Shapes can't see a value lie — dollars rescaled to cents, USD quietly converted —
+    so a pin makes the exact value part of the contract. Comparison is exact equality,
+    no tolerance. A pinned field that is missing or unequal is an output-side *silent*
+    failure (the agent reads the wrong value confidently), so every mismatch is
+    BREAKING — deterministic, unlike the advisory judge.
+    """
+    resp: JsonDict = response if isinstance(response, dict) else {}
+    changes: list[Change] = []
+    for name in sorted(expect):
+        if name not in resp:
+            changes.append(Change(
+                tool, "behavior", name, "value_pin_missing", "breaking",
+                f"probe {tool}: pinned field '{name}' missing from response",
+            ))
+        elif resp[name] != expect[name]:
+            changes.append(Change(
+                tool, "behavior", name, "value_pin_mismatch", "breaking",
+                f"probe {tool}: pinned field '{name}' expected {expect[name]!r}, "
+                f"got {resp[name]!r}",
+            ))
+    return changes
