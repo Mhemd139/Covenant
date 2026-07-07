@@ -86,7 +86,8 @@ def test_pins_catch_value_drift(tmp_path, monkeypatch):
     _write_toml(tmp_path, '\n[[probes]]\ntool = "get_account"\n'
                           'args = { account_id = "acct-001" }\n'
                           'expect = { balance_usd = 4210.0, currency = "USD" }\n')
-    runner.invoke(app, ["snapshot"])
+    r = runner.invoke(app, ["snapshot"])
+    assert r.exit_code == 0, r.output
     r = runner.invoke(app, ["check"])
     assert r.exit_code == 0, r.output
 
