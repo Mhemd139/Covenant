@@ -20,14 +20,22 @@ Covenant makes the tool contract explicit, versioned, and enforced:
 ## Quickstart
 
 ```bash
+pip install covenant-mcp
+covenant snapshot --server http://localhost:8000/mcp   # your server: http(s) URL or a stdio launch command
+covenant check    --server http://localhost:8000/mcp   # 0 clean · 1 breaking drift · 2 config error
+```
+
+`snapshot` writes `covenant.lock.json` — commit it. Every `check` from then on diffs the live server against it. Flags can move into a committed [covenant.toml](https://github.com/Mhemd139/Covenant/blob/main/covenant.toml).
+
+### Try the demo — break a server for real
+
+The repo ships a real example server with a committed baseline, plus drift levers. `COVENANT_DRIFT=1` renames a live tool's output field:
+
+```bash
 git clone https://github.com/Mhemd139/Covenant && cd Covenant
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
-```
 
-The repo ships a real example server with a committed baseline. Check it, then break it for real — `COVENANT_DRIFT=1` renames a live tool's output field:
-
-```bash
 covenant check                    # OK no drift - exit 0
 COVENANT_DRIFT=1 covenant check   # catches the lie - exit 1
 ```
@@ -35,14 +43,6 @@ COVENANT_DRIFT=1 covenant check   # catches the lie - exit 1
 ![covenant check catching a breaking change](https://raw.githubusercontent.com/Mhemd139/Covenant/main/docs/assets/drift-check.svg)
 
 The lie is caught twice: in the declared schema (`output` rows) and in the actual response body (`behavior` rows), because the committed config probes the tool.
-
-Point it at your own server via [covenant.toml](https://github.com/Mhemd139/Covenant/blob/main/covenant.toml), or inline:
-
-```bash
-pip install covenant-mcp
-covenant snapshot --server http://localhost:8000/mcp   # or a stdio launch command
-covenant check    --server http://localhost:8000/mcp --json
-```
 
 ## The severity model
 
