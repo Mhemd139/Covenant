@@ -22,8 +22,12 @@ A **probe** is a user-defined safe example call — `[[probes]]` in `covenant.to
   Layer 0 classifier**. Responses are output-side by definition, so the direction principle
   applies unchanged: lost field / structural retype / gains-null = BREAKING, scalar retype =
   DEGRADED, additions = COMPATIBLE. Changes render with location `behavior`.
+- A probe may declare **value pins** — `expect = { field = value }` (v0.1.1): exact output
+  values that are part of the contract, compared with exact equality on every check. Pins
+  live in `covenant.toml` only, never in the lock — declared truth, not observed state, so
+  adding a pin never requires re-snapshotting.
 - `covenant check --judge` additionally sends (tool description, args, baseline sample,
-  live response) to an LLM judge for **semantic** drift that shape can't see (dollars→cents).
+  live response) to an LLM judge for **semantic** drift in fields too volatile to pin.
 
 ## Fingerprint rules (locked)
 
@@ -43,6 +47,7 @@ A **probe** is a user-defined safe example call — `[[probes]]` in `covenant.to
 |---|---|---|
 | Live response loses a field / structural retype / gains null | BREAKING | Same silent-lie class as schema output changes — classifier reused verbatim |
 | Probe now returns `isError` | DEGRADED | Loud: the agent sees the error. Direction principle. |
+| Pinned field missing or unequal | BREAKING | Deterministic and user-declared — no false-positive class, unlike the judge. Schema and shape still match while the value lies: the exact silent failure quarantine exists for. |
 | Judge suspects semantic drift | DEGRADED | The detector is probabilistic; a false BREAKING is a self-inflicted quarantine outage. Same precedent as the composition punt: flag for review, never auto-break. |
 | Probe in covenant.toml but not in the lock | error, exit 2 | A baseline mismatch is a config state, not drift — re-snapshot. |
 
@@ -61,9 +66,11 @@ legitimately changes `sample` between snapshots — probe stable read-only tools
   Layer 0) renames `amount_usd`→`amount_cents` in the response body only. Schema check
   stays clean; the probe catches BREAKING. CI-runnable, no API key.
 - `COVENANT_SEMANTIC_DRIFT=1` — `get_account` returns the balance ×100. Schema and shape
-  identical; only `--judge` catches it.
+  identical; the committed `expect` pin catches it deterministically (BREAKING, exit 1,
+  CI-runnable, no API key). `--judge` also flags it, and covers the unpinned fields.
 
 ## Out of scope
 
-Automatic probe generation, value-level assertions (snapshot testing), judging live
-traffic at the proxy (cost — Layer 3 judges probes on demand).
+Automatic probe generation; *auto-generated* value pins (snapshot-testing style — a pin
+the user didn't type is a pin they won't trust) and tolerance/regex matchers on pins;
+judging live traffic at the proxy (cost — Layer 3 judges probes on demand).
