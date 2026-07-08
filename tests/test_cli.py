@@ -81,6 +81,23 @@ def test_probes_catch_behavioral_drift(tmp_path, monkeypatch):
     assert "behavior" in r.output
 
 
+def test_pins_catch_value_drift(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    _write_toml(tmp_path, '\n[[probes]]\ntool = "get_account"\n'
+                          'args = { account_id = "acct-001" }\n'
+                          'expect = { balance_usd = 4210.0, currency = "USD" }\n')
+    r = runner.invoke(app, ["snapshot"])
+    assert r.exit_code == 0, r.output
+    r = runner.invoke(app, ["check"])
+    assert r.exit_code == 0, r.output
+
+    monkeypatch.setenv("COVENANT_SEMANTIC_DRIFT", "1")  # same schema, same shape, value x100
+    r = runner.invoke(app, ["check"])
+    assert r.exit_code == 1, r.output
+    assert "balance_usd" in r.output
+    assert "BREAKING" in r.output
+
+
 def test_probe_missing_from_baseline_errors(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     _write_toml(tmp_path)

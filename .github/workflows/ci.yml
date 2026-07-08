@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    - cron: "17 6 3 * *"  # monthly freshness alarm: catch dependency/runner rot before a visitor does
 
 jobs:
   test:
@@ -25,8 +27,8 @@ jobs:
           --health-timeout 3s
           --health-retries 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
       - run: pip install -e ".[dev]"
@@ -41,8 +43,8 @@ jobs:
   contract-check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - run: pip install -e .
@@ -70,3 +72,14 @@ jobs:
             exit 1
           fi
           echo "behavioral drift correctly detected (exit 1)"
+      - name: covenant check catches value drift (schema and shape identical)
+        run: |
+          set +e
+          COVENANT_SEMANTIC_DRIFT=1 covenant check
+          code=$?
+          set -e
+          if [ "$code" -ne 1 ]; then
+            echo "::error::expected exit 1 (value drift), got $code"
+            exit 1
+          fi
+          echo "value drift correctly detected by expect pins (exit 1)"

@@ -19,6 +19,10 @@ model = "gemini-2.5-flash"
 [[probes]]
 tool = "get_account"
 args = { account_id = "acct-001" }
+# Value pins: exact values that are part of the contract. Schema and shape can't
+# see a rescale or a currency swap; a pinned mismatch is BREAKING. Pin only fields
+# that are deterministic for these args — volatile fields are the judge's job.
+expect = { balance_usd = 4210.0, currency = "USD" }
 
 [[probes]]
 tool = "get_transactions"

@@ -15,7 +15,7 @@ from . import report
 from ._types import JsonDict
 from .config import Config, load_config
 from .contract import contract_from_tool, read_baseline, write_baseline
-from .diff import Change, diff_probes, diff_tools
+from .diff import Change, diff_expect, diff_probes, diff_tools
 from .errors import CovenantError
 from .fingerprint import fingerprint, probe_key
 from .introspect import introspect, run_probes
@@ -47,7 +47,7 @@ def _snapshot_probes(cfg: Config) -> list[JsonDict]:
 def _check_probes(
     cfg: Config, base_tools: list[JsonDict], base_probes: list[JsonDict], judge: bool
 ) -> list[Change]:
-    """Re-run the probes, diff fingerprints, and (optionally) judge semantics."""
+    """Re-run the probes, diff fingerprints + value pins, and (optionally) judge."""
     base_by = {probe_key(p["tool"], p.get("args")): p for p in base_probes}
     missing = [p.tool for p in cfg.probes if probe_key(p.tool, p.args) not in base_by]
     if missing:
@@ -57,6 +57,11 @@ def _check_probes(
         )
     live = run_probes(cfg, cfg.probes)
     changes = diff_probes(base_probes, live)
+    live_by = {probe_key(r["tool"], r["args"]): r for r in live}
+    for p in cfg.probes:
+        r = live_by[probe_key(p.tool, p.args)]  # run_probes returns one record per probe
+        if p.expect and not r["is_error"]:  # an errored probe already reports probe_errored
+            changes += diff_expect(p.tool, p.expect, r["response"])
     if not judge:
         return changes
     from .judge import judge_probe  # the [judge] extra is optional; import on use

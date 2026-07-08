@@ -6,6 +6,8 @@ wins over the file and is treated as a URL if it looks like one, else a command.
 
 ``[[probes]]`` entries are Layer 3's behavioral probes: example calls (tool + args)
 that snapshot/check will *execute* against the server — only list read-only tools.
+An optional ``expect`` table pins exact output values; a pinned field that comes
+back missing or unequal at check time is BREAKING (see diff.diff_expect).
 """
 
 from __future__ import annotations
@@ -24,6 +26,7 @@ DEFAULT_BASELINE = "covenant.lock.json"
 class Probe:
     tool: str
     args: JsonDict
+    expect: JsonDict = field(default_factory=dict)
 
 
 @dataclass
@@ -44,12 +47,14 @@ def _parse_probes(data: JsonDict) -> list[Probe]:
     for i, entry in enumerate(data.get("probes") or []):
         tool = entry.get("tool") if isinstance(entry, dict) else None
         args = entry.get("args", {}) if isinstance(entry, dict) else None
-        if not isinstance(tool, str) or not tool or not isinstance(args, dict):
+        expect = entry.get("expect", {}) if isinstance(entry, dict) else None
+        if (not isinstance(tool, str) or not tool
+                or not isinstance(args, dict) or not isinstance(expect, dict)):
             raise ConfigError(
                 f'probe #{i + 1} is invalid: each [[probes]] needs tool = "name" '
-                "and an optional args table"
+                "and optional args / expect tables"
             )
-        probes.append(Probe(tool=tool, args=args))
+        probes.append(Probe(tool=tool, args=args, expect=expect))
     return probes
 
 

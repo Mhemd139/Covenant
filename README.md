@@ -39,6 +39,7 @@ The lie is caught twice: in the declared schema (`output` rows) and in the actua
 Point it at your own server via [covenant.toml](https://github.com/Mhemd139/Covenant/blob/main/covenant.toml), or inline:
 
 ```bash
+pip install covenant-mcp
 covenant snapshot --server http://localhost:8000/mcp   # or a stdio launch command
 covenant check    --server http://localhost:8000/mcp --json
 ```
@@ -52,7 +53,7 @@ The consumer of an MCP tool is an LLM agent that re-reads tool definitions on ev
 
 | Change | Tier |
 | --- | --- |
-| Output field removed · output required→optional · output gains `null` · structural output retype · tool removed | **BREAKING** |
+| Output field removed · output required→optional · output gains `null` · structural output retype · tool removed · pinned value changed | **BREAKING** |
 | Input retyped/narrowed · new required input · scalar output retype · risky enum changes · description changed | DEGRADED |
 | Optional input added · output field added · input enum widened | COMPATIBLE |
 
@@ -65,7 +66,7 @@ Commit `covenant.toml` + `covenant.lock.json`, then:
 ```yaml
 - name: Contract check
   run: |
-    pip install "covenant-mcp @ git+https://github.com/Mhemd139/Covenant"
+    pip install covenant-mcp
     covenant check --json   # exit 1 on breaking drift, 2 on config/connection error
 ```
 
@@ -81,7 +82,20 @@ tool = "get_transactions"
 args = { account_id = "acct-001" }
 ```
 
-`snapshot` stores each response's **fingerprint** (the type shape of what actually came back); `check` re-runs the probes and classifies shape drift with the same severity model. For drift a fingerprint can't see — same shape, changed *meaning*, like a balance quietly rescaled from dollars to cents — add the LLM judge:
+`snapshot` stores each response's **fingerprint** (the type shape of what actually came back); `check` re-runs the probes and classifies shape drift with the same severity model.
+
+A fingerprint remembers that *a number lives there* — not which number. When the exact value is part of the contract — a reference balance, a currency code, a unit — **pin it**:
+
+```toml
+[[probes]]
+tool = "get_account"
+args = { account_id = "acct-001" }
+expect = { balance_usd = 4210.0, currency = "USD" }
+```
+
+`check` compares every pinned field against the live response with exact equality — no tolerance, no patterns. A mismatch is **BREAKING**: schema and shape still match while the value lies (a balance rescaled to cents, dollars quietly converted to another currency) — exactly the silent failure the direction principle exists to catch. Pins are opt-in and deterministic, like `pip --require-hashes`: nothing is pinned unless you type it. Try it on the example server — `COVENANT_SEMANTIC_DRIFT=1 covenant check` rescales the live balance ×100 and exits 1.
+
+For drift you *didn't* pin — fields too volatile to pin, meaning shifts across the whole response — add the LLM judge:
 
 ```bash
 pip install -e ".[judge]"
