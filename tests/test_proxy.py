@@ -38,10 +38,12 @@ def test_healthy_call_is_forwarded_unchanged():
 
     def handler(request):
         seen["hit"] = True
+        # honors the declared outputSchema — per-call verification must wave it through
         return httpx.Response(
             200,
             json={"jsonrpc": "2.0", "id": 1,
-                  "result": {"content": [{"type": "text", "text": "$4210.00"}]}},
+                  "result": {"structuredContent": {"balance_usd": 4210.0},
+                             "content": [{"type": "text", "text": "$4210.00"}]}},
             headers={"content-type": "application/json"},
         )
 

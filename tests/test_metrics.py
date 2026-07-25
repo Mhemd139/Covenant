@@ -30,7 +30,9 @@ def rpc_call(name, rpc_id=1):
 def ok_handler(request):
     return httpx.Response(
         200,
-        json={"jsonrpc": "2.0", "id": 1, "result": {"content": [{"type": "text", "text": "x"}]}},
+        json={"jsonrpc": "2.0", "id": 1,
+              "result": {"structuredContent": {"balance_usd": 42.0},
+                         "content": [{"type": "text", "text": "x"}]}},
         headers={"content-type": "application/json"},
     )
 
@@ -42,6 +44,7 @@ def test_forwarded_call_counts_ok_and_observes_latency():
     text = client.get("/covenant/metrics").text
     assert 'covenant_calls_total{outcome="ok",tool="get_account"} 1.0' in text
     assert 'covenant_call_latency_seconds_count{tool="get_account"} 1.0' in text
+    assert 'covenant_response_verifications_total{outcome="ok",tool="get_account"} 1.0' in text
 
 
 def test_blocked_call_counts_blocked():

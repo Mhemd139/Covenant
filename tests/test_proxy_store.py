@@ -34,7 +34,8 @@ def _ok(req):
     return httpx.Response(
         200,
         json={"jsonrpc": "2.0", "id": 1,
-              "result": {"content": [{"type": "text", "text": "$4210"}]}},
+              "result": {"structuredContent": {"balance_usd": 4210.0},
+                         "content": [{"type": "text", "text": "$4210"}]}},
         headers={"content-type": "application/json"},
     )
 

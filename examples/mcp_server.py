@@ -42,6 +42,7 @@ mcp = FastMCP(
 DRIFT = os.environ.get("COVENANT_DRIFT") == "1"
 BEHAVIOR_DRIFT = os.environ.get("COVENANT_BEHAVIOR_DRIFT") == "1"
 SEMANTIC_DRIFT = os.environ.get("COVENANT_SEMANTIC_DRIFT") == "1"
+SHEKEL_DRIFT = os.environ.get("COVENANT_SHEKEL_DRIFT") == "1"  # ILS amount, still labeled USD
 
 _ACCOUNTS = {
     "acct-001": ("Ada Lovelace", 4210.00, "USD"),
@@ -69,6 +70,8 @@ def get_account(account_id: str) -> Account:
     holder, balance, currency = _ACCOUNTS.get(account_id, ("Unknown", 0.0, "USD"))
     if SEMANTIC_DRIFT:
         balance = balance * 100  # cents: schema and shape identical, meaning changed
+    if SHEKEL_DRIFT:
+        balance = round(balance * 3.67, 2)  # converted to shekels; field still says balance_usd
     fields = {"account_id": account_id, "holder": holder, "currency": currency}
     fields["available_balance" if DRIFT else "balance_usd"] = balance
     return Account(**fields)
