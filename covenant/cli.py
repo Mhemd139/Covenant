@@ -31,16 +31,23 @@ _server_opt = typer.Option(
 
 def _snapshot_probes(cfg: Config) -> list[JsonDict]:
     """Run the configured probes and build their baseline records."""
+    # Pins ride along into the lock: the proxy reads only the baseline, so a
+    # committed pin must live there to be enforceable per-call.
+    expect_by = {probe_key(p.tool, p.args): p.expect for p in cfg.probes if p.expect}
     records: list[JsonDict] = []
     for r in run_probes(cfg, cfg.probes):
         if r["is_error"]:
             raise CovenantError(f"probe {r['tool']} failed at snapshot: {r['error']}")
-        records.append({
+        record: JsonDict = {
             "tool": r["tool"],
             "args": r["args"],
             "fingerprint": fingerprint(r["response"]),
             "sample": r["response"],
-        })
+        }
+        expect = expect_by.get(probe_key(r["tool"], r["args"]))
+        if expect:
+            record["expect"] = expect
+        records.append(record)
     return records
 
 
@@ -156,6 +163,10 @@ def proxy(
         None, "--database-url", envvar="DATABASE_URL",
         help="Postgres URL to persist quarantine + call log (optional).",
     ),
+    observe: bool = typer.Option(
+        False, "--observe",
+        help="Detect and record response violations but never block or quarantine.",
+    ),
 ) -> None:
     """Run the transparent proxy: forward to the upstream, quarantine drifted tools."""
     try:
@@ -174,16 +185,19 @@ def proxy(
                 raise CovenantError('persistence needs: pip install "covenant-mcp[store]"') from e
             store = PostgresStore(database_url)
 
-        _, base_tools, _ = read_baseline(baseline)
+        _, base_tools, base_probes = read_baseline(baseline)
     except CovenantError as e:
         err.print(f"[red]error:[/red] {e}")
         raise typer.Exit(2) from e
 
-    fastapi_app = create_app(upstream, base_tools, store=store, baseline_path=baseline)
+    fastapi_app = create_app(upstream, base_tools, store=store, baseline_path=baseline,
+                             baseline_probes=base_probes, observe=observe)
     persistence = "postgres" if store else "in-memory (no persistence)"
+    mode = "observe (never blocks)" if observe else "enforce"
     console.print(f"[green]Covenant proxy[/green] guarding [cyan]{upstream}[/cyan] "
                   f"at [cyan]http://{host}:{port}/mcp[/cyan]")
-    console.print(f"[dim]baseline: {baseline} ({len(base_tools)} tools) | store: {persistence} | "
+    console.print(f"[dim]baseline: {baseline} ({len(base_tools)} tools) | mode: {mode} | "
+                  f"store: {persistence} | "
                   f"POST http://{host}:{port}/covenant/refresh to re-check[/dim]")
     uvicorn.run(fastapi_app, host=host, port=port, log_level="warning")
 
