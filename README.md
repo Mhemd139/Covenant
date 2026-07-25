@@ -6,6 +6,8 @@
 ![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](https://github.com/Mhemd139/Covenant/tree/main/LICENSE)
 
+![Covenant in 20 seconds: a drifted MCP tool gets quarantined, the agent gets a clean 423 instead of silently wrong data](https://raw.githubusercontent.com/Mhemd139/Covenant/main/docs/assets/covenant-film.gif)
+
 When an MCP server changes a tool (renames an output field, tightens an input schema), nothing throws. The LLM agents depending on that tool keep calling it, read a field that no longer exists, and confidently report a wrong answer. Existing MCP scanners hash tool definitions and tell you *that* something changed; Covenant classifies every change by whether it **breaks the agent**, then enforces the verdict from CI to runtime.
 
 Covenant makes the tool contract explicit, versioned, and enforced:
