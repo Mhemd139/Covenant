@@ -45,11 +45,20 @@ class Metrics:
             "Tools currently quarantined",
             registry=self.registry,
         )
+        self.verifications = Counter(
+            "covenant_response_verifications_total",
+            "Per-call response verifications, by tool and outcome",
+            ["tool", "outcome"],  # ok | violation | degraded | unverified | skipped_large | error
+            registry=self.registry,
+        )
 
     def record_call(self, tool: str, outcome: str, latency_s: float | None = None) -> None:
         self.calls.labels(tool=tool, outcome=outcome).inc()
         if latency_s is not None:
             self.latency.labels(tool=tool).observe(latency_s)
+
+    def record_verification(self, tool: str, outcome: str) -> None:
+        self.verifications.labels(tool=tool, outcome=outcome).inc()
 
     def render(self) -> tuple[bytes, str]:
         return generate_latest(self.registry), CONTENT_TYPE_LATEST

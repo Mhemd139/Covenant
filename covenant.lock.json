@@ -5,6 +5,10 @@
       "args": {
         "account_id": "acct-001"
       },
+      "expect": {
+        "balance_usd": 4210.0,
+        "currency": "USD"
+      },
       "fingerprint": {
         "properties": {
           "account_id": {
