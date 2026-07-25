@@ -39,7 +39,7 @@ live response instead of a diff — plus pins:
 | Reference field missing · structural retype · `null` where the reference forbids it | **block + quarantine** | Output-silent: the agent reads absence or wrongness confidently. Deterministic evidence, direction principle applies unchanged. |
 | Pinned value mismatch (call args `probe_key`-match a pinned probe) | **block + quarantine** | Pins are declared truth; exact equality, no tolerance (Layer 3 invariant). |
 | Scalar↔scalar retype | record DEGRADED, forward | Same tier as `check`: tolerable for LLM consumers, loud for code. Never blocks. |
-| Extra fields | forward, `ok` | Additive output is COMPATIBLE. |
+| Extra fields | forward, `ok` | Additive output is COMPATIBLE. `additionalProperties: false` in an outputSchema is deliberately **not** enforced per-call: the classifier itself treats added output fields as compatible, and the verifier must not block what `check` waves through. |
 | Upstream `isError` | forward, skip | Already a loud failure. |
 | No reference (unprobed tool, no outputSchema) · tool not in baseline | forward, `unverified` | No truth to hold it to; measured, not hidden. |
 
@@ -62,10 +62,15 @@ no finer knobs.
 *schema* is clean would be released seconds after being caught. Therefore:
 
 - **schema bucket** — owned by `detect()`; `sync()` replaces it, exactly as today.
-- **response bucket** — owned by the verifier; untouched by `sync()`.
+  Store restore at startup (`load_quarantine`) goes through `sync()`, so it also
+  feeds only this bucket.
+- **response bucket** — owned by the verifier; untouched by `sync()`. Deliberately
+  **not persisted**: a proxy restart behaves like a refresh, and if the server still
+  lies the next live call re-quarantines it. No new store API.
 - `is_quarantined` = union of both. `/covenant/status` shows each entry's source.
-- `POST /covenant/refresh` clears the response bucket: refresh is the operator's
-  re-check button. If the server still lies, the next live call re-quarantines it —
+- `POST /covenant/refresh` clears the response bucket via an explicit
+  `clear_responses()` (never via `sync()`): refresh is the operator's re-check
+  button. If the server still lies, the next live call re-quarantines it —
   quarantine-on-evidence, clear-on-request, re-arm-on-recurrence. No manual unlock API.
 
 ## SSE interception (the transport that actually matters)
@@ -83,7 +88,12 @@ verifies almost nothing in practice. Locked design:
 - Per-frame buffer cap: **1 MiB** (`_VERIFY_MAX_BYTES`, module constant, tunable). Over
   the cap, the remainder of the stream forwards unverified and `skipped_large` is
   counted — a bounded verifier, never an unbounded buffer. The same cap applies to
-  plain-JSON bodies.
+  plain-JSON bodies: the cap bounds *verification* cost, not proxy buffering — the
+  JSON path already reads whole bodies today (pre-existing, unchanged); a body over
+  the cap forwards unverified and counts `skipped_large`.
+- A stream that closes without the matching response frame (cancel, disconnect,
+  empty stream) counts `unverified` and never quarantines — no evidence, measured
+  not hidden.
 
 ## Failure policy and cost
 
