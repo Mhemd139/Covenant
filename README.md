@@ -16,7 +16,7 @@ Covenant makes the tool contract explicit, versioned, and enforced:
 | --- | --- |
 | `covenant snapshot` | Introspect a server (stdio or HTTP) and commit its tool contracts to a deterministic `covenant.lock.json` |
 | `covenant check` | Diff the live server against the baseline, classify every change **BREAKING / DEGRADED / COMPATIBLE**, exit non-zero in CI on breaking drift |
-| `covenant proxy` | Transparent reverse-proxy that **quarantines** drifted tools at runtime: agents get a clean "tool unavailable" instead of silently wrong data |
+| `covenant proxy` | Transparent reverse-proxy that verifies **every `tools/call` response** against the contract and **quarantines** drifted tools: agents get a clean "tool unavailable" instead of silently wrong data |
 | `MCPContract` CRD | Kubernetes operator that runs the same check on a schedule and enforces it fleet-wide |
 
 ## Quickstart
@@ -110,7 +110,7 @@ Judge verdicts are **advisory by design**: DEGRADED, never BREAKING, because a p
 
 ## Runtime guard: the proxy
 
-The linter catches drift at ship time; the proxy contains it at runtime. It forwards every JSON-RPC exchange byte-for-byte (SSE passthrough included), but a `tools/call` to a quarantined tool is short-circuited with a clean MCP `isError` result.
+The linter catches drift at ship time; the proxy contains it at runtime. It forwards every JSON-RPC exchange transparently (SSE included), short-circuits a `tools/call` to a quarantined tool with a clean MCP `isError` result, and verifies every response it forwards (below).
 
 ```bash
 pip install -e ".[proxy]"
@@ -127,6 +127,16 @@ covenant proxy --upstream http://localhost:8000/mcp --port 9000
 
 Detection is proxy-owned: `refresh` re-lists the upstream itself, so enforcement never depends on the client's `tools/list` timing. Optional Postgres persistence keeps quarantine across restarts (`--database-url`, `[store]` extra); store writes are best-effort and never fail the request path.
 
+### Per-call response verification
+
+Checks are point-in-time; between two of them a server can start lying and, until v0.2.0, every call in that window sailed through. Now the proxy verifies each `tools/call` response before forwarding it, against the tool's declared `outputSchema`, else the **core fingerprint** of its committed probes (fields present in every probe response), plus any committed value pins.
+
+A deterministic output-contract violation (reference field missing, structural retype, forbidden `null`, pinned value mismatch) is **blocked on the spot**: the agent gets a clean `isError` instead of the lie, and the tool stays quarantined until `POST /covenant/refresh`. Scalar retypes record DEGRADED and forward; extra fields pass; tools with no reference forward untouched and are counted as `unverified` in `covenant_response_verifications_total`, never hidden. On SSE, only the frame carrying the matching result is held (in-process, sub-millisecond); progress notifications stream in real time. If the verifier itself breaks, the original bytes forward: the firewall never drops traffic because its own inspection failed.
+
+Rolling out against an unfamiliar upstream? `covenant proxy --observe` detects, records, and counts, but never blocks: the classic WAF monitor-then-prevent pattern.
+
+Try it on the example server: start the proxy, then restart the upstream with `COVENANT_SHEKEL_DRIFT=1` (amounts converted to shekels, still labeled `balance_usd`; schema and shape identical). The very next call through the proxy is blocked by the committed pin. No refresh, no `tools/list`, no CI run. Details: [per-call verification design spec](https://github.com/Mhemd139/Covenant/blob/main/docs/specs/2026-07-26-covenant-per-call-response-verification-design.md).
+
 `docker compose up -d` also brings up Prometheus + a provisioned Grafana dashboard at `http://localhost:3000`; the quarantine stat flips green→red within one scrape of a drift:
 
 ![Grafana dashboard: blocked calls and a quarantined tool after a live drift](https://raw.githubusercontent.com/Mhemd139/Covenant/main/docs/assets/grafana-quarantine.png)
@@ -136,7 +146,7 @@ Detection is proxy-owned: `refresh` re-lists the upstream itself, so enforcement
 Declare contract conformance instead of scripting it. The Helm chart ships the proxy, a kopf operator, and an `MCPContract` CRD. The operator re-runs the check on each contract's own schedule, writes the verdict into status, and nudges the proxy to quarantine on drift:
 
 ```bash
-docker build -t covenant-mcp:0.1.1 .
+docker build -t covenant-mcp:0.2.0 .
 helm install covenant deploy/helm/covenant --set proxy.upstream=http://my-server:8000/mcp
 kubectl create configmap covenant-baseline --from-file=covenant.lock.json
 kubectl apply -f examples/mcpcontract.yaml
