@@ -16,7 +16,7 @@ Covenant makes the tool contract explicit, versioned, and enforced:
 | --- | --- |
 | `covenant snapshot` | Introspect a server (stdio or HTTP) and commit its tool contracts to a deterministic `covenant.lock.json` |
 | `covenant check` | Diff the live server against the baseline, classify every change **BREAKING / DEGRADED / COMPATIBLE**, exit non-zero in CI on breaking drift |
-| `covenant proxy` | Transparent reverse-proxy that verifies **every `tools/call` response** against the contract and **quarantines** drifted tools: agents get a clean "tool unavailable" instead of silently wrong data |
+| `covenant proxy` | Transparent reverse-proxy that verifies **`tools/call` responses** against the contract and **quarantines** drifted tools: agents get a clean "tool unavailable" instead of silently wrong data |
 | `MCPContract` CRD | Kubernetes operator that runs the same check on a schedule and enforces it fleet-wide |
 
 ## Quickstart
@@ -110,7 +110,7 @@ Judge verdicts are **advisory by design**: DEGRADED, never BREAKING, because a p
 
 ## Runtime guard: the proxy
 
-The linter catches drift at ship time; the proxy contains it at runtime. It forwards every JSON-RPC exchange transparently (SSE included), short-circuits a `tools/call` to a quarantined tool with a clean MCP `isError` result, and verifies every response it forwards (below).
+The linter catches drift at ship time; the proxy contains it at runtime. It forwards every JSON-RPC exchange transparently (SSE included), short-circuits a `tools/call` to a quarantined tool with a clean MCP `isError` result, and verifies the responses it forwards (below).
 
 ```bash
 pip install -e ".[proxy]"
@@ -131,7 +131,7 @@ Detection is proxy-owned: `refresh` re-lists the upstream itself, so enforcement
 
 Checks are point-in-time; between two of them a server can start lying and, until v0.2.0, every call in that window sailed through. Now the proxy verifies each `tools/call` response before forwarding it, against the tool's declared `outputSchema`, else the **core fingerprint** of its committed probes (fields present in every probe response), plus any committed value pins.
 
-A deterministic output-contract violation (reference field missing, structural retype, forbidden `null`, pinned value mismatch) is **blocked on the spot**: the agent gets a clean `isError` instead of the lie, and the tool stays quarantined until `POST /covenant/refresh`. Scalar retypes record DEGRADED and forward; extra fields pass; tools with no reference forward untouched and are counted as `unverified` in `covenant_response_verifications_total`, never hidden. On SSE, only the frame carrying the matching result is held (in-process, sub-millisecond); progress notifications stream in real time. If the verifier itself breaks, the original bytes forward: the firewall never drops traffic because its own inspection failed.
+A deterministic output-contract violation (reference field missing, structural retype, forbidden `null`, pinned value mismatch) is **blocked on the spot**: the agent gets a clean `isError` instead of the lie, and the tool stays quarantined until `POST /covenant/refresh`. Scalar retypes record DEGRADED and forward; extra fields pass. The verifier is deliberately bounded and fail-open, and every bypass is counted in `covenant_response_verifications_total`, never hidden: tools with no reference forward as `unverified`, bodies over a 1 MiB cap forward as `skipped_large`, and if the verifier itself breaks, the original bytes forward as `error`; the firewall never drops traffic because its own inspection failed. On SSE, only the frame carrying the matching result is held while it is verified in-process (a violation also logs a best-effort drift event before the block); progress notifications stream in real time.
 
 Rolling out against an unfamiliar upstream? `covenant proxy --observe` detects, records, and counts, but never blocks: the classic WAF monitor-then-prevent pattern.
 
