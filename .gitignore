@@ -20,3 +20,6 @@ Thumbs.db
 *.mov
 *.mp4
 !docs/demo.gif
+
+# graphify knowledge-graph artifacts
+graphify-out/
