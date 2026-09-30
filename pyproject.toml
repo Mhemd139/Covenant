@@ -9,7 +9,7 @@ description = "A contract linter for MCP servers — catch breaking tool-schema 
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
-authors = [{ name = "Mhemd139" }]
+authors = [{ name = "Muhammad Masarwa" }]
 keywords = ["mcp", "model-context-protocol", "contract", "schema", "linter", "drift", "agents", "llm"]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -35,6 +35,7 @@ dependencies = [
 Homepage = "https://github.com/Mhemd139/Covenant"
 Repository = "https://github.com/Mhemd139/Covenant"
 Issues = "https://github.com/Mhemd139/Covenant/issues"
+Changelog = "https://github.com/Mhemd139/Covenant/releases"
 
 [project.scripts]
 covenant = "covenant.cli:app"
