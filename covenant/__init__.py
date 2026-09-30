@@ -4,4 +4,6 @@ Snapshot your MCP server's tool contracts into a committed baseline, then diff t
 live server against it to catch breaking changes before they ship.
 """
 
-__version__ = "0.1.0"
+from importlib.metadata import version
+
+__version__ = version("covenant-mcp")
