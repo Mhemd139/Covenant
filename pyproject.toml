@@ -95,8 +95,10 @@ python_version = "3.11"
 strict = true
 warn_unused_ignores = true
 disallow_untyped_defs = true
+# kubernetes>=37 ships py.typed but its config loaders are still unannotated.
+untyped_calls_exclude = ["kubernetes.config"]
 
-# asyncpg/kubernetes ship no py.typed marker; ignore their missing stubs (not our code).
+# asyncpg (and kubernetes<37) ship no py.typed marker; ignore their missing stubs (not our code).
 [[tool.mypy.overrides]]
 module = ["asyncpg.*", "kubernetes.*"]
 ignore_missing_imports = true
